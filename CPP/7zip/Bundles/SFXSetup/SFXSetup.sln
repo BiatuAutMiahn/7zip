@@ -1,0 +1,28 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio 15
+VisualStudioVersion = 15.0.34829.251
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "SFXSetup", "SFXSetup.vcxproj", "{CD2BE995-AF96-4236-BB3E-E1F36FC9B9DE}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|x86 = Debug|x86
+		Release|x86 = Release|x86
+		ReleaseD|x86 = ReleaseD|x86
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{CD2BE995-AF96-4236-BB3E-E1F36FC9B9DE}.Debug|x86.ActiveCfg = Debug|Win32
+		{CD2BE995-AF96-4236-BB3E-E1F36FC9B9DE}.Debug|x86.Build.0 = Debug|Win32
+		{CD2BE995-AF96-4236-BB3E-E1F36FC9B9DE}.Release|x86.ActiveCfg = Release|Win32
+		{CD2BE995-AF96-4236-BB3E-E1F36FC9B9DE}.Release|x86.Build.0 = Release|Win32
+		{CD2BE995-AF96-4236-BB3E-E1F36FC9B9DE}.ReleaseD|x86.ActiveCfg = ReleaseD|Win32
+		{CD2BE995-AF96-4236-BB3E-E1F36FC9B9DE}.ReleaseD|x86.Build.0 = ReleaseD|Win32
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {1097A7EA-F7C1-40DA-B78B-20D5CD18056D}
+	EndGlobalSection
+EndGlobal
