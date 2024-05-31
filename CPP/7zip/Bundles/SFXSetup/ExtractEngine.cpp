@@ -111,6 +111,7 @@ HRESULT ExtractArchive(CCodecs *codecs, const FString &fileName, const FString &
   if (showProgress)
   {
     t.ExtractCallbackSpec->ProgressDialog.IconID = IDI_ICON;
+    
     NWindows::CThread thread;
     const WRes wres = thread.Create(CThreadExtracting::MyThreadFunction, &t);
     if (wres != 0)
@@ -119,6 +120,7 @@ HRESULT ExtractArchive(CCodecs *codecs, const FString &fileName, const FString &
     UString title;
     LangString(IDS_PROGRESS_EXTRACTING, title);
     t.ExtractCallbackSpec->StartProgressDialog(title, thread);
+    t.ExtractCallbackSpec->ProgressDialog.Foreground();
   }
   else
 
