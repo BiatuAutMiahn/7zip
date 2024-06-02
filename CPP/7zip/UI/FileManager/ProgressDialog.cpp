@@ -63,8 +63,18 @@ bool CProgressDialog::OnInit()
 
   if (IconID >= 0)
   {
-    HICON icon = LoadIcon(g_hInstance, MAKEINTRESOURCE(IconID));
-    SetIcon(ICON_BIG, icon);
+    uint16_t dpi = GetDpiForWindow(_window);
+
+    HICON smicon = (HICON)LoadImage(
+        g_hInstance, MAKEINTRESOURCE(IconID), IMAGE_ICON,
+        GetSystemMetricsForDpi(SM_CXSMICON, dpi),
+        GetSystemMetricsForDpi(SM_CYSMICON, dpi), LR_DEFAULTCOLOR);
+    HICON lgicon = (HICON)LoadImage(
+        g_hInstance, MAKEINTRESOURCE(IconID), IMAGE_ICON,
+        GetSystemMetricsForDpi(SM_CXICON, dpi),
+        GetSystemMetricsForDpi(SM_CYICON, dpi), LR_DEFAULTCOLOR);
+    SetIcon(ICON_BIG, lgicon);
+    SetIcon(ICON_SMALL, smicon);
   }
 
   _timer = SetTimer(kTimerID, kTimerElapse);

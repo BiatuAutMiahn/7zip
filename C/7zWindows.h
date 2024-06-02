@@ -32,6 +32,7 @@
 #include <windows.h>
 #else
 #include <Windows.h>
+#include <WinUser.h>
 #endif
 // #include <basetsd.h>
 // #include <wtypes.h>
