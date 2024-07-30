@@ -19,6 +19,7 @@
 #include "ExtractEngine.h"
 #include "resource.h"
 
+
 using namespace NWindows;
 using namespace NFile;
 using namespace NDir;
@@ -171,7 +172,7 @@ int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE /* hPrevInstance */,
     const UString friendlyName = GetTextConfigValue(pairs, "Title");
     const UString installPrompt = GetTextConfigValue(pairs, "BeginPrompt");
     const UString progress = GetTextConfigValue(pairs, "Progress");
-    if (progress.IsEqualTo_Ascii_NoCase("no")) showProgress = false;
+    if (progress.IsEqualTo_Ascii_NoCase("false")) showProgress = false;
     const int index = FindTextConfigItem(pairs, "Directory");
     if (index >= 0) dirPrefix = pairs[index].String;
     if (!installPrompt.IsEmpty() && !assumeYes) {
@@ -203,7 +204,6 @@ int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE /* hPrevInstance */,
     }
     FinstallPath = tempDir.GetPath();
   }
-  
 
   CCodecs *codecs = new CCodecs;
   CMyComPtr<IUnknown> compressCodecsInfo = codecs;
@@ -215,14 +215,13 @@ int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE /* hPrevInstance */,
     }
   }
 
-  //const FString tempDirPath = tempDir.GetPath();
-  // tempDirPath = L"M:\\1\\"; // to test low disk space
+  // const FString tempDirPath = tempDir.GetPath();
+  //  tempDirPath = L"M:\\1\\"; // to test low disk space
   {
     bool isCorrupt = false;
     UString errorMessage;
     HRESULT result = ExtractArchive(codecs, fullPath, FinstallPath,
-                                    showProgress,
-                                    isCorrupt, errorMessage);
+                                    showProgress, isCorrupt, errorMessage);
 
     if (result != S_OK) {
       if (!assumeYes) {
@@ -248,7 +247,7 @@ int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE /* hPrevInstance */,
 #endif
 
   HANDLE hProcess = NULL;
-  
+
 #ifdef MY_SHELL_EXECUTE
   LPWSTR lpwsFilePath;
   if (!executeFile.IsEmpty()) {
@@ -278,12 +277,11 @@ int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE /* hPrevInstance */,
     if (parametersSys.IsEmpty()) {
       execInfo.lpParameters = NULL;
     } else {
-        lpwsParametersSys = new WCHAR[MAX_PATH + 1];
-        ExpandEnvironmentStrings(parametersSys, lpwsParametersSys, MAX_PATH + 1);
-        execInfo.lpParameters = lpwsParametersSys;
-
+      lpwsParametersSys = new WCHAR[MAX_PATH + 1];
+      ExpandEnvironmentStrings(parametersSys, lpwsParametersSys, MAX_PATH + 1);
+      execInfo.lpParameters = lpwsParametersSys;
     }
-    
+
     execInfo.lpDirectory = installPath;
     execInfo.nShow = SW_SHOWNORMAL;
     execInfo.hProcess = NULL;
@@ -351,11 +349,10 @@ int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE /* hPrevInstance */,
       ::CloseHandle(processInformation.hThread);
       hProcess = processInformation.hProcess;
     }
-    if (hProcess) {
-      WaitForSingleObject(hProcess, INFINITE);
-      ::CloseHandle(hProcess);
-    }
   }
-
+  if (hProcess) {
+    WaitForSingleObject(hProcess, INFINITE);
+    ::CloseHandle(hProcess);
+  }
   return 0;
 }

@@ -110,8 +110,22 @@ HRESULT ExtractArchive(CCodecs *codecs, const FString &fileName, const FString &
 
   if (showProgress)
   {
-    t.ExtractCallbackSpec->ProgressDialog.IconID = IDI_ICON;
     
+    t.ExtractCallbackSpec->ProgressDialog.IconID = IDI_ICON;
+    //HICON hIcon = (HICON)LoadImage(
+    //    (HINSTANCE)t.ExtractCallbackSpec->ProgressDialog.GetLongPtr(
+    //                         GWLP_HINSTANCE)
+    //    ,  // handle to instance
+    //                               MAKEINTRESOURCE(IDI_ICON),  // icon name
+    //                               IMAGE_ICON,                 // image type
+    //                     GetSystemMetrics(SM_CXICON),  // desired width
+    //                     GetSystemMetrics(SM_CYICON),  // desired height
+    //                               LR_DEFAULTCOLOR             // load flags
+    //);
+    //t.ExtractCallbackSpec->ProgressDialog.SendMsg(WM_SETICON, ICON_BIG,
+    //                                              (LPARAM)hIcon);
+    //t.ExtractCallbackSpec->ProgressDialog.SendMsg(WM_SETICON, ICON_SMALL,
+    //                                              (LPARAM)hIcon);
     NWindows::CThread thread;
     const WRes wres = thread.Create(CThreadExtracting::MyThreadFunction, &t);
     if (wres != 0)

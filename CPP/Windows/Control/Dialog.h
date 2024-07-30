@@ -16,11 +16,16 @@ class CDialog: public CWindow
 {
   // Z7_CLASS_NO_COPY(CDialog)
 public:
+
   CDialog(HWND wnd = NULL): CWindow(wnd) {}
   virtual ~CDialog() {}
 
-  HWND GetItem(unsigned itemID) const
-    { return GetDlgItem(_window, (int)itemID); }
+  HWND GetItem(unsigned itemID) const {
+    return GetDlgItem(_window, (int)itemID);
+  }
+
+  HWND GetHWND(unsigned itemID) const { return _window;
+  }
 
   bool EnableItem(unsigned itemID, bool enable) const
     { return BOOLToBool(::EnableWindow(GetItem(itemID), BoolToBOOL(enable))); }

@@ -75,7 +75,7 @@
     // #define Z7_WIN32_WINNT_MIN  0x0602  // win8
     #define Z7_WIN32_WINNT_MIN  0x0600  // vista
   #elif defined(_M_X64) || defined(_M_AMD64) || defined(__x86_64__) || defined(_M_IA64)
-    #define Z7_WIN32_WINNT_MIN  0x0503  // win2003
+#define Z7_WIN32_WINNT_MIN 0x0a00 // 0x0503  // win2003
   // #elif defined(_M_IX86) || defined(__i386__)
   //   #define Z7_WIN32_WINNT_MIN  0x0500  // win2000
   #else // x86 and another(old) systems
