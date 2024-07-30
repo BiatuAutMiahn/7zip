@@ -159,6 +159,7 @@ int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE /* hPrevInstance */,
   LPWSTR lpwsInstallPath;
   bool showProgress = true;
   bool runWait = true;
+  bool doRunAs = true;
   bool doCleanup = true;
 
   if (!config.IsEmpty()) {
@@ -189,6 +190,8 @@ int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE /* hPrevInstance */,
 #ifdef MY_SHELL_EXECUTE
     executeFile = GetTextConfigValue(pairs, "ExecuteFile");
     executeParameters = GetTextConfigValue(pairs, "ExecuteParameters");
+    const UString cfgRunAs = GetTextConfigValue(pairs, "ExecuteRunAs");
+    if (cfgRunAs.IsEqualTo_Ascii_NoCase("no")) doRunAs = false;
 #endif
   }
 
@@ -232,7 +235,7 @@ int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE /* hPrevInstance */,
             errorMessage = NError::MyFormatMessage(result);
           ::MessageBoxW(NULL, errorMessage,
                         NWindows::MyLoadString(IDS_EXTRACTION_ERROR_TITLE),
-                        MB_ICONERROR);
+                        MB_SETFOREGROUND | MB_ICONERROR);
         }
       }
       return 1;
@@ -260,7 +263,7 @@ int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE /* hPrevInstance */,
         ;
 
     execInfo.hwnd = NULL;
-    execInfo.lpVerb = NULL;
+    execInfo.lpVerb = doRunAs ? L"runas" : NULL;
     lpwsFilePath = new WCHAR[MAX_PATH + 1];
     ExpandEnvironmentStrings(filePath, lpwsFilePath, MAX_PATH + 1);
     execInfo.lpFile = lpwsFilePath;
@@ -298,6 +301,7 @@ int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE /* hPrevInstance */,
       // appLaunched = L"setup.exe";
       if (!NFind::DoesFileExist_FollowLink(us2fs(appLaunched))) {
         if (!assumeYes) ShowErrorMessage(L"Cannot find appLaunched file!");
+        if (!assumeYes) ShowErrorMessage(appLaunched);
         return 1;
       }
 
