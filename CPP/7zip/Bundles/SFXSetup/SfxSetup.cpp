@@ -18,7 +18,10 @@
 #include "../../UI/Explorer/MyMessages.h"
 #include "ExtractEngine.h"
 #include "resource.h"
-
+#include <stdio.h>
+#include <iostream>
+#include <tchar.h>
+#include <conio.h>
 
 using namespace NWindows;
 using namespace NFile;
@@ -126,6 +129,7 @@ int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE /* hPrevInstance */,
   LoadSecurityDlls();
 #endif
 
+
   // InitCommonControls();
 
   UString archiveName, switches;
@@ -158,10 +162,34 @@ int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE /* hPrevInstance */,
   UString installPath;
   FString FinstallPath;
   LPWSTR lpwsInstallPath;
+  bool isElevated = false;
   bool showProgress = true;
   bool runWait = true;
-  bool doRunAs = true;
+  bool doRunAs = false;
   bool doCleanup = true;
+  bool doConsole = false;
+  bool doConsoleWait = false;
+
+  FILE *fDummy;
+  HANDLE hConOut;
+  HANDLE hConErr;
+  HANDLE hConIn;
+  HANDLE hRead;
+  HANDLE hWrite;
+
+  // Check if elevated.
+  HANDLE hToken = NULL;
+  HANDLE hMyProcess = GetCurrentProcess();
+  DWORD hMyPid = GetProcessId(NULL);
+  if (OpenProcessToken(hMyProcess, TOKEN_QUERY, &hToken)) {
+    TOKEN_ELEVATION elevation;
+    DWORD dwSize = sizeof(TOKEN_ELEVATION);
+    if (GetTokenInformation(hToken, TokenElevation, &elevation,
+                            sizeof(elevation), &dwSize)) {
+      isElevated = elevation.TokenIsElevated;
+    }
+    CloseHandle(hToken);
+  }
 
   if (!config.IsEmpty()) {
     CObjectVector<CTextConfigPair> pairs;
@@ -169,31 +197,110 @@ int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE /* hPrevInstance */,
       if (!assumeYes) ShowErrorMessage(L"Config failed");
       return 1;
     }
+    const UString cfgRunAs = GetTextConfigValue(pairs, "DoElevate");
+    const UString cfgConsole = GetTextConfigValue(pairs, "DoConsole");
+    const UString cfgConsoleWait = GetTextConfigValue(pairs, "DoConsoleWait");
     const UString friendlyName = GetTextConfigValue(pairs, "Title");
     const UString installPrompt = GetTextConfigValue(pairs, "BeginPrompt");
-    const UString progress = GetTextConfigValue(pairs, "Progress");
+    const UString progress = GetTextConfigValue(pairs, "ShowProgress");
+
+    if (!isElevated && cfgRunAs.IsEqualTo_Ascii_NoCase("true")) {
+      HANDLE hProcess = NULL;
+      CSysString filePath(GetSystemString(fullPath));
+      SHELLEXECUTEINFO execInfo;
+      execInfo.cbSize = sizeof(execInfo);
+      execInfo.fMask = SEE_MASK_NOCLOSEPROCESS;
+      execInfo.hwnd = NULL;
+      execInfo.lpVerb = L"runas";
+      execInfo.lpFile = filePath;
+      executeParameters.Add_Space_if_NotEmpty();
+      executeParameters += switches;
+      LPWSTR lpwsParametersSys;
+      const CSysString parametersSys(GetSystemString(executeParameters));
+      if (parametersSys.IsEmpty()) {
+        execInfo.lpParameters = NULL;
+      }
+      else {
+        execInfo.lpParameters = parametersSys;
+      }
+      execInfo.lpDirectory = dirPrefix;
+      execInfo.nShow = SW_SHOWNORMAL;
+      execInfo.hProcess = NULL;
+      ::ShellExecuteEx(&execInfo);
+      DWORD dwError = GetLastError();
+      if (dwError == ERROR_CANCELLED) {
+        //User refused to allow elevation.
+        return 2;
+      } else {
+        return dwError;
+      }
+      hProcess = execInfo.hProcess;
+      WaitForSingleObject(hProcess, INFINITE);
+      ::CloseHandle(hProcess);
+      return 0;
+    }
+    if (cfgConsole.IsEqualTo_Ascii_NoCase("true")) doConsole = true;
+    if (cfgConsoleWait.IsEqualTo_Ascii_NoCase("true")) doConsoleWait = true;
+    if (doConsole || doConsoleWait) {
+      // This does not work as expected, makes console unusable.
+      if (!AttachConsole(ATTACH_PARENT_PROCESS)) {
+        AllocConsole();
+        //AttachConsole(GetCurrentProcessId());
+        //HWND Handle = GetConsoleWindow();
+      }
+      FILE* fp;
+      bool result = true;
+      // Redirect STDIN if the console has an input handle
+      if (GetStdHandle(STD_INPUT_HANDLE) != INVALID_HANDLE_VALUE) {
+        if (freopen_s(&fp, "CONIN$", "r", stdin) != 0) {
+          result = false;
+        }
+        else {
+          setvbuf(stdin, NULL, _IONBF, 0);
+        }
+      }
+      // Redirect STDOUT if the console has an output handle
+      if (GetStdHandle(STD_OUTPUT_HANDLE) != INVALID_HANDLE_VALUE) {
+        if (freopen_s(&fp, "CONOUT$", "w", stdout) != 0) {
+          result = false;
+        } else {
+          setvbuf(stdout, NULL, _IONBF, 0);
+        }
+      }
+      // Redirect STDERR if the console has an error handle
+      if (GetStdHandle(STD_ERROR_HANDLE) != INVALID_HANDLE_VALUE) {
+        if (freopen_s(&fp, "CONOUT$", "w", stderr) != 0) {
+          result = false;
+        } else {
+          setvbuf(stderr, NULL, _IONBF, 0);
+        }
+      }
+      std::ios::sync_with_stdio(true);
+      hConOut = CreateFile(_T("CONOUT$"), GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
+      SetStdHandle(STD_OUTPUT_HANDLE, hConOut);
+      std::wcout.clear();
+      std::cout.clear();
+      std::wcerr.clear();
+      std::cerr.clear();
+      std::wcin.clear();
+      std::cin.clear();
+    }
+    ::CloseHandle(hMyProcess);
     if (progress.IsEqualTo_Ascii_NoCase("false")) showProgress = false;
     const int index = FindTextConfigItem(pairs, "Directory");
     if (index >= 0) dirPrefix = pairs[index].String;
     if (!installPrompt.IsEmpty() && !assumeYes) {
-      if (MessageBoxW(NULL, installPrompt, friendlyName,
-                      MB_YESNO | MB_ICONQUESTION) != IDYES)
-        return 0;
+      if (MessageBoxW(NULL, installPrompt, friendlyName, MB_YESNO | MB_ICONQUESTION) != IDYES)
+        return 2;
     }
     configInstallPath = GetTextConfigValue(pairs, "InstallPath");
     lpwsInstallPath = new WCHAR[MAX_PATH + 1];
-    ExpandEnvironmentStringsW(us2fs(configInstallPath).Ptr(), lpwsInstallPath,
-                              MAX_PATH + 1);
+    ExpandEnvironmentStringsW(us2fs(configInstallPath).Ptr(), lpwsInstallPath, MAX_PATH + 1);
     installPath = lpwsInstallPath;
     FinstallPath = us2fs(installPath);
-
-    appLaunched = GetTextConfigValue(pairs, "RunProgram");
-#ifdef MY_SHELL_EXECUTE
+    //appLaunched = GetTextConfigValue(pairs, "RunProgram");
     executeFile = GetTextConfigValue(pairs, "ExecuteFile");
     executeParameters = GetTextConfigValue(pairs, "ExecuteParameters");
-    const UString cfgRunAs = GetTextConfigValue(pairs, "ExecuteRunAs");
-    if (cfgRunAs.IsEqualTo_Ascii_NoCase("no")) doRunAs = false;
-#endif
   }
 
   CTempDir tempDir;
@@ -247,112 +354,83 @@ int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE /* hPrevInstance */,
 #endif
 
   HANDLE hProcess = NULL;
-
-#ifdef MY_SHELL_EXECUTE
-  LPWSTR lpwsFilePath;
+  PROCESS_INFORMATION processInformation;
   if (!executeFile.IsEmpty()) {
-    CSysString filePath(GetSystemString(executeFile));
-    CSysString installPath(GetSystemString(FinstallPath));
-    SHELLEXECUTEINFO execInfo;
-    execInfo.cbSize = sizeof(execInfo);
-    execInfo.fMask = SEE_MASK_NOCLOSEPROCESS
-#ifndef UNDER_CE
-                     | SEE_MASK_FLAG_DDEWAIT
-#endif
-        ;
+    // appLaunched = L"setup.exe";
 
-    execInfo.hwnd = NULL;
-    execInfo.lpVerb = doRunAs ? L"runas" : NULL;
-    lpwsFilePath = new WCHAR[MAX_PATH + 1];
-    ExpandEnvironmentStrings(filePath, lpwsFilePath, MAX_PATH + 1);
-    execInfo.lpFile = lpwsFilePath;
+    LPWSTR lpwsAppLaunchedSys;
+    lpwsAppLaunchedSys = new WCHAR[MAX_PATH + 1];
+    ExpandEnvironmentStrings(executeFile, lpwsAppLaunchedSys, MAX_PATH + 1);
+    const CSysString appLaunchedSys(
+      GetSystemString(/*dirPrefix + */lpwsAppLaunchedSys));
 
-    if (!switches.IsEmpty()) {
-      executeParameters.Add_Space_if_NotEmpty();
-      executeParameters += switches;
-    }
-
-    LPWSTR lpwsParametersSys;
-    const CSysString parametersSys(GetSystemString(executeParameters));
-    if (parametersSys.IsEmpty()) {
-      execInfo.lpParameters = NULL;
-    } else {
-      lpwsParametersSys = new WCHAR[MAX_PATH + 1];
-      ExpandEnvironmentStrings(parametersSys, lpwsParametersSys, MAX_PATH + 1);
-      execInfo.lpParameters = lpwsParametersSys;
-    }
-
-    execInfo.lpDirectory = installPath;
-    execInfo.nShow = SW_SHOWNORMAL;
-    execInfo.hProcess = NULL;
-    /* BOOL success = */ ::ShellExecuteEx(&execInfo);
-    UINT32 result = (UINT32)(UINT_PTR)execInfo.hInstApp;
-    if (result <= 32) {
-      if (!assumeYes) ShowErrorMessage(L"Cannot open file");
+    if (!NFind::DoesFileExist_FollowLink(us2fs(appLaunchedSys))) {
+      if (!assumeYes) ShowErrorMessage(L"Cannot find executable!");
+      if (!assumeYes) ShowErrorMessage(appLaunchedSys);
       return 1;
     }
-    hProcess = execInfo.hProcess;
-  } else
-#endif
-  {
-    if (!appLaunched.IsEmpty()) {
-      // appLaunched = L"setup.exe";
-      if (!NFind::DoesFileExist_FollowLink(us2fs(appLaunched))) {
-        if (!assumeYes) ShowErrorMessage(L"Cannot find appLaunched file!");
-        if (!assumeYes) ShowErrorMessage(appLaunched);
-        return 1;
-      }
-
-      {
-        FString s2 = installPath;
-        NName::NormalizeDirPathPrefix(s2);
-        appLaunched.Replace(L"%%T" WSTRING_PATH_SEPARATOR, fs2us(s2));
-      }
-
-      const UString appNameForError =
-          appLaunched;  // actually we need to rtemove parameters also
-
-      appLaunched.Replace(L"%%T", fs2us(installPath));
-
-      if (!switches.IsEmpty()) {
-        appLaunched.Add_Space();
-        appLaunched += switches;
-      }
-      STARTUPINFO startupInfo;
-      startupInfo.cb = sizeof(startupInfo);
-      startupInfo.lpReserved = NULL;
-      startupInfo.lpDesktop = NULL;
-      startupInfo.lpTitle = NULL;
-      startupInfo.dwFlags = 0;
-      startupInfo.cbReserved2 = 0;
-      startupInfo.lpReserved2 = NULL;
-
-      PROCESS_INFORMATION processInformation;
-
-      LPWSTR lpwsAppLaunchedSys;
-      lpwsAppLaunchedSys = new WCHAR[MAX_PATH + 1];
-      ExpandEnvironmentStrings(appLaunched, lpwsAppLaunchedSys, MAX_PATH + 1);
-      const CSysString appLaunchedSys(
-          GetSystemString(dirPrefix + lpwsAppLaunchedSys));
-
-      const BOOL createResult = CreateProcess(
-          NULL, appLaunchedSys.Ptr_non_const(), NULL, NULL, FALSE, 0, NULL,
-          NULL /*tempDir.GetPath() */, &startupInfo, &processInformation);
-      if (createResult == 0) {
-        if (!assumeYes) {
-          // we print name of exe file, if error message is
-          // ERROR_BAD_EXE_FORMAT: "%1 is not a valid Win32 application".
-          ShowErrorMessageSpec(appNameForError);
-        }
-        return 1;
-      }
-      ::CloseHandle(processInformation.hThread);
-      hProcess = processInformation.hProcess;
+    executeFile = us2fs(appLaunchedSys);
+    {
+      FString s2 = installPath;
+      NName::NormalizeDirPathPrefix(s2);
+      executeFile.Replace(L"%%T" WSTRING_PATH_SEPARATOR, fs2us(s2));
     }
+
+    const UString appNameForError =
+      executeFile;  // actually we need to rtemove parameters also
+
+    executeFile.Replace(L"%%T", fs2us(installPath));
+
+
+    if (!executeParameters.IsEmpty()) {
+      executeFile.Add_Space();
+      executeFile += executeParameters;
+    }
+
+    if (!switches.IsEmpty()) {
+      executeFile.Add_Space();
+      executeFile += switches;
+    }
+
+    STARTUPINFO startupInfo;
+    ZeroMemory(&startupInfo, sizeof(STARTUPINFO));
+    startupInfo.cb = sizeof(STARTUPINFO);
+    startupInfo.lpReserved = NULL;
+    startupInfo.lpDesktop = NULL;
+    startupInfo.lpTitle = NULL;
+    startupInfo.dwFlags = 0;
+    startupInfo.cbReserved2 = 0;
+    startupInfo.lpReserved2 = NULL;
+
+    PROCESS_INFORMATION processInformation;
+
+
+    const BOOL createResult = CreateProcess(
+        NULL, executeFile.Ptr_non_const(), NULL, NULL, FALSE, 0, NULL,
+        NULL /*tempDir.GetPath() */, &startupInfo, &processInformation);
+    if (createResult == 0) {
+      if (!assumeYes) {
+        // we print name of exe file, if error message is
+        // ERROR_BAD_EXE_FORMAT: "%1 is not a valid Win32 application".
+        ShowErrorMessageSpec(appNameForError);
+      }
+      return 1;
+    }
+    ::CloseHandle(processInformation.hThread);
+    hProcess = processInformation.hProcess;
   }
+
   if (hProcess) {
     WaitForSingleObject(hProcess, INFINITE);
     ::CloseHandle(hProcess);
+  }
+  
+  if (doConsoleWait) {
+    wprintf(L"\r\nPress any key to exit...");
+    _getch();  // Wait for key press before exiting
+  }
+  if (doConsole||doConsoleWait) {
+    FreeConsole();
   }
   return 0;
 }
