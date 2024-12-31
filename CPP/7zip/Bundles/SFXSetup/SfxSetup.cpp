@@ -242,12 +242,13 @@ int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE /* hPrevInstance */,
     if (cfgConsole.IsEqualTo_Ascii_NoCase("true")) doConsole = true;
     if (cfgConsoleWait.IsEqualTo_Ascii_NoCase("true")) doConsoleWait = true;
     if (doConsole || doConsoleWait) {
+      AllocConsole();
       // This does not work as expected, makes console unusable.
-      if (!AttachConsole(ATTACH_PARENT_PROCESS)) {
-        AllocConsole();
+      //if (!AttachConsole(ATTACH_PARENT_PROCESS)) {
+        
         //AttachConsole(GetCurrentProcessId());
         //HWND Handle = GetConsoleWindow();
-      }
+      //}
       FILE* fp;
       bool result = true;
       // Redirect STDIN if the console has an input handle
