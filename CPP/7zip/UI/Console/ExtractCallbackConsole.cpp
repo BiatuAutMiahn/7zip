@@ -637,7 +637,7 @@ HRESULT CExtractCallbackConsole::BeforeOpen(const wchar_t *name, bool testMode)
   ClosePercents_for_so();
   if (_so)
   {
-    *_so << endl << (testMode ? kTesting : kExtracting);
+    *_so << (testMode ? kTesting : kExtracting);
     _so->NormalizePrint_wstr_Path(name);
     *_so << endl;
   }
@@ -836,8 +836,8 @@ HRESULT CExtractCallbackConsole::OpenResult(
   {
     if (_so)
     {
-      RINOK(Print_OpenArchive_Props(*_so, codecs, arcLink))
-      *_so << endl;
+      //RINOK(Print_OpenArchive_Props(*_so, codecs, arcLink))
+      //*_so << endl;
     }
   }
   else
@@ -906,8 +906,8 @@ HRESULT CExtractCallbackConsole::ExtractResult(HRESULT result)
         NumArcsWithWarnings++;
       else
         NumOkArcs++;
-      if (_so)
-        *_so << kEverythingIsOk << endl;
+      //if (_so)
+      //  *_so << kEverythingIsOk << endl;
     }
     else
     {

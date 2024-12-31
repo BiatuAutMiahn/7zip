@@ -68,20 +68,20 @@
 #ifndef _WINDOWS_
 
 #ifndef Z7_WIN32_WINNT_MIN
-  #if defined(_M_ARM64) || defined(__aarch64__)
-    // #define Z7_WIN32_WINNT_MIN  0x0a00  // win10
-    #define Z7_WIN32_WINNT_MIN  0x0600  // vista
-  #elif defined(_M_ARM) && defined(_M_ARMT) && defined(_M_ARM_NT)
-    // #define Z7_WIN32_WINNT_MIN  0x0602  // win8
-    #define Z7_WIN32_WINNT_MIN  0x0600  // vista
-  #elif defined(_M_X64) || defined(_M_AMD64) || defined(__x86_64__) || defined(_M_IA64)
-    #define Z7_WIN32_WINNT_MIN  0x0503  // win2003
-  // #elif defined(_M_IX86) || defined(__i386__)
-  //   #define Z7_WIN32_WINNT_MIN  0x0500  // win2000
-  #else // x86 and another(old) systems
-    #define Z7_WIN32_WINNT_MIN  0x0500  // win2000
-    // #define Z7_WIN32_WINNT_MIN  0x0502  // win2003 // for debug
-  #endif
+#if defined(_M_ARM64) || defined(__aarch64__)
+  // #define Z7_WIN32_WINNT_MIN  0x0a00  // win10
+#define Z7_WIN32_WINNT_MIN  0x0600  // vista
+#elif defined(_M_ARM) && defined(_M_ARMT) && defined(_M_ARM_NT)
+  // #define Z7_WIN32_WINNT_MIN  0x0602  // win8
+#define Z7_WIN32_WINNT_MIN  0x0600  // vista
+#elif defined(_M_X64) || defined(_M_AMD64) || defined(__x86_64__) || defined(_M_IA64)
+#define Z7_WIN32_WINNT_MIN  0x0503  // win2003
+// #elif defined(_M_IX86) || defined(__i386__)
+//   #define Z7_WIN32_WINNT_MIN  0x0500  // win2000
+#else // x86 and another(old) systems
+#define Z7_WIN32_WINNT_MIN  0x0500  // win2000
+// #define Z7_WIN32_WINNT_MIN  0x0502  // win2003 // for debug
+#endif
 #endif // Z7_WIN32_WINNT_MIN
 
 
@@ -89,15 +89,15 @@
 #ifdef _WIN32_WINNT
   // #error Stop_Compiling_Bad_WIN32_WINNT
 #else
-  #ifndef Z7_NO_DEFINE_WIN32_WINNT
+#ifndef Z7_NO_DEFINE_WIN32_WINNT
 Z7_DIAGNOSTIC_IGNORE_BEGIN_RESERVED_MACRO_IDENTIFIER
-    #define _WIN32_WINNT  Z7_WIN32_WINNT_MIN
+#define _WIN32_WINNT  Z7_WIN32_WINNT_MIN
 Z7_DIAGNOSTIC_IGNORE_END_RESERVED_MACRO_IDENTIFIER
-  #endif
+#endif
 #endif // _WIN32_WINNT
 
 #ifndef WINVER
-  #define WINVER  _WIN32_WINNT
+#define WINVER  _WIN32_WINNT
 #endif
 #endif // Z7_DO_NOT_DEFINE_WIN32_WINNT
 

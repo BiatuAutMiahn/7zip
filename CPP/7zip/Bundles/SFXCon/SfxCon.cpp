@@ -25,14 +25,22 @@
 #include "../../UI/Console/ExtractCallbackConsole.h"
 #include "../../UI/Console/List.h"
 #include "../../UI/Console/OpenCallbackConsole.h"
+#include "../../../Common/StringConvert.h"
+#include "../../../Common/TextConfig.h"
 
 #include "../../MyVersion.h"
+#include <stdio.h>
+#include <iostream>
+#include <tchar.h>
+#include <conio.h>
 
 
 using namespace NWindows;
 using namespace NFile;
 using namespace NDir;
 using namespace NCommandLineParser;
+
+static CFSTR const kTempDirPrefix = FTEXT("7zC");
 
 #ifdef _WIN32
 extern
@@ -44,10 +52,7 @@ int g_CodePage;
 int g_CodePage = -1;
 extern CStdOutStream *g_StdStream;
 
-static const char * const kCopyrightString =
-"\n7-Zip SFX " MY_VERSION_CPU " : " MY_COPYRIGHT_DATE "\n";
-
-static const int kNumSwitches = 6;
+static const char * const kCopyrightString = "\n7-Zip InfinitySFX " MY_VERSION_CPU " https://github.com/BiatuAutMiahn/7zip\n";
 
 namespace NKey {
 enum Enum
@@ -92,16 +97,6 @@ static const char kSomeCludeAfterRecursedPostStringMinSize = 2; // at least <@|!
 #define SWFRM_1(t)     SWFRM_3(t, false, 0)
 #define SWFRM_SIMPLE   SWFRM_1(NSwitchType::kSimple)
 #define SWFRM_STRING_SINGL(mi) SWFRM_3(NSwitchType::kString, false, mi)
-
-static const CSwitchForm kSwitchForms[kNumSwitches] =
-{
-  { "?",  SWFRM_SIMPLE },
-  { "H",  SWFRM_SIMPLE },
-  { "BD", SWFRM_SIMPLE },
-  { "Y",  SWFRM_SIMPLE },
-  { "P",  SWFRM_STRING_SINGL(1) },
-  { "O",  SWFRM_STRING_SINGL(1) },
-};
 
 static const int kNumCommandForms = 3;
 
@@ -254,268 +249,459 @@ static void GetArguments(int numArgs, char *args[], UStringVector &parts)
 #endif
 
 
-int Main2(
-  #ifndef _WIN32
-  int numArgs, char *args[]
-  #endif
-);
-int Main2(
-  #ifndef _WIN32
-  int numArgs, char *args[]
-  #endif
-)
+static bool ReadDataString(CFSTR fileName, LPCSTR startID, LPCSTR endID,
+  AString& stringResult) {
+  stringResult.Empty();
+  NIO::CInFile inFile;
+  if (!inFile.Open(fileName)) return false;
+  const size_t kBufferSize = (1 << 12);
+
+  Byte buffer[kBufferSize];
+  const unsigned signatureStartSize = MyStringLen(startID);
+  const unsigned signatureEndSize = MyStringLen(endID);
+
+  size_t numBytesPrev = 0;
+  bool writeMode = false;
+  UInt64 posTotal = 0;
+
+  for (;;) {
+    if (posTotal > (1 << 22)) return (stringResult.IsEmpty());
+    const size_t numReadBytes = kBufferSize - numBytesPrev;
+    size_t processedSize;
+    if (!inFile.ReadFull(buffer + numBytesPrev, numReadBytes, processedSize))
+      return false;
+    if (processedSize == 0) return true;
+    const size_t numBytesInBuffer = numBytesPrev + processedSize;
+    UInt32 pos = 0;
+    for (;;) {
+      if (writeMode) {
+        if (pos + signatureEndSize > numBytesInBuffer) break;
+        if (memcmp(buffer + pos, endID, signatureEndSize) == 0) return true;
+        const Byte b = buffer[pos];
+        if (b == 0) return false;
+        stringResult += (char)b;
+        pos++;
+      }
+      else {
+        if (pos + signatureStartSize > numBytesInBuffer) break;
+        if (memcmp(buffer + pos, startID, signatureStartSize) == 0) {
+          writeMode = true;
+          pos += signatureStartSize;
+        }
+        else
+          pos++;
+      }
+    }
+    numBytesPrev = numBytesInBuffer - pos;
+    posTotal += pos;
+    memmove(buffer, buffer + pos, numBytesPrev);
+  }
+}
+
+static char kStartID[] = { ',', '!', '@', 'I', 'n', 's', 't', 'a', 'l', 'l',
+                          '@', '!', 'U', 'T', 'F', '-', '8', '!', 0 };
+static char kEndID[] = { ',', '!', '@', 'I', 'n', 's', 't', 'a',
+                        'l', 'l', 'E', 'n', 'd', '@', '!', 0 };
+
+static struct CInstallIDInit {
+  CInstallIDInit() {
+    kStartID[0] = ';';
+    kEndID[0] = ';';
+  }
+} g_CInstallIDInit;
+
+
+int Main2();
+int Main2()
 {
-  #ifdef _WIN32
   // do we need load Security DLLs for console program?
   LoadSecurityDlls();
-  #endif
 
-  #if defined(_WIN32) && !defined(UNDER_CE)
   SetFileApisToOEM();
-  #endif
   
   #ifdef ENV_HAVE_LOCALE
   MY_SetLocale();
   #endif
 
   g_StdOut << kCopyrightString;
-
+  
+  UString archiveName, switches;
+  UString executeFile, executeParameters;
   UStringVector commandStrings;
-  #ifdef _WIN32
   NCommandLineParser::SplitCommandLine(GetCommandLineW(), commandStrings);
-  #else
-  GetArguments(numArgs, args, commandStrings);
-  #endif
 
-  #ifdef _WIN32
-  
-  FString arcPath;
-  {
-    FString path;
-    NDLL::MyGetModuleFileName(path);
-    if (!MyGetFullPathName(path, arcPath))
-    {
-      g_StdOut << "GetFullPathName Error";
-      return NExitCode::kFatalError;
+  NCommandLineParser::SplitCommandLine(GetCommandLineW(), archiveName,
+    switches);
+
+  FString fullPath;
+  NDLL::MyGetModuleFileName(fullPath);
+
+  switches.Trim();
+  bool assumeYes = false;
+  if (switches.IsPrefixedBy_Ascii_NoCase("-y")) {
+    assumeYes = true;
+    switches = switches.Ptr(2);
+    switches.Trim();
+  }
+
+
+  AString config;
+  if (!ReadDataString(fullPath, kStartID, kEndID, config)) {
+    (*g_StdStream) << endl << L"Can't load config info" << endl;
+    return 1;
+  }
+
+
+  UString dirPrefix("." STRING_PATH_SEPARATOR);
+  UString appLaunched;
+  UString configInstallPath;
+  UString installPath;
+  FString FinstallPath;
+  LPWSTR lpwsInstallPath;
+  bool isElevated = false;
+  bool showProgress = true;
+  bool runWait = true;
+  bool doRunAs = false;
+  bool doCleanup = true;
+  bool doConsole = false;
+  bool doConsoleWait = false;
+
+  // Check if elevated.
+  HANDLE hToken = NULL;
+  HANDLE hMyProcess = GetCurrentProcess();
+  DWORD hMyPid = GetProcessId(NULL);
+  if (OpenProcessToken(hMyProcess, TOKEN_QUERY, &hToken)) {
+    TOKEN_ELEVATION elevation;
+    DWORD dwSize = sizeof(TOKEN_ELEVATION);
+    if (GetTokenInformation(hToken, TokenElevation, &elevation,
+      sizeof(elevation), &dwSize)) {
+      isElevated = elevation.TokenIsElevated;
     }
+    CloseHandle(hToken);
   }
 
-  #else
 
-  if (commandStrings.IsEmpty())
-    return NExitCode::kFatalError;
-
-  const FString arcPath = us2fs(commandStrings.Front());
-
-  #endif
-
-  #ifndef UNDER_CE
-  if (commandStrings.Size() > 0)
-    commandStrings.Delete(0);
-  #endif
-
-  NCommandLineParser::CParser parser;
-  
-  try
-  {
-    if (!parser.ParseStrings(kSwitchForms, kNumSwitches, commandStrings))
-    {
-      g_StdOut << "Command line error:" << endl
-          << parser.ErrorMessage << endl
-          << parser.ErrorLine << endl;
-      return NExitCode::kUserError;
+  if (!config.IsEmpty()) {
+    CObjectVector<CTextConfigPair> pairs;
+    if (!GetTextConfig(config, pairs)) {
+      (*g_StdStream) << endl << L"Config failed" << endl;
+      return 1;
     }
+    const UString cfgRunAs = GetTextConfigValue(pairs, "DoElevate");
+    const UString cfgConsoleWait = GetTextConfigValue(pairs, "DoConsoleWait");
+
+    if (!isElevated && cfgRunAs.IsEqualTo_Ascii_NoCase("true")) {
+      HANDLE hProcess = NULL;
+      CSysString filePath(GetSystemString(fullPath));
+      SHELLEXECUTEINFO execInfo;
+      execInfo.cbSize = sizeof(execInfo);
+      execInfo.fMask = SEE_MASK_NOCLOSEPROCESS;
+      execInfo.hwnd = NULL;
+      execInfo.lpVerb = L"runas";
+      execInfo.lpFile = filePath;
+      executeParameters.Add_Space_if_NotEmpty();
+      executeParameters += switches;
+      LPWSTR lpwsParametersSys;
+      const CSysString parametersSys(GetSystemString(executeParameters));
+      if (parametersSys.IsEmpty()) {
+        execInfo.lpParameters = NULL;
+      }
+      else {
+        execInfo.lpParameters = parametersSys;
+      }
+      execInfo.lpDirectory = dirPrefix;
+      execInfo.nShow = SW_SHOWNORMAL;
+      execInfo.hProcess = NULL;
+      ::ShellExecuteEx(&execInfo);
+      DWORD dwError = GetLastError();
+      if (dwError == ERROR_CANCELLED) {
+        //User refused to allow elevation.
+        return 2;
+      }
+      else {
+        return dwError;
+      }
+      hProcess = execInfo.hProcess;
+      WaitForSingleObject(hProcess, INFINITE);
+      ::CloseHandle(hProcess);
+      return 0;
+    }
+    doConsole = true;
+    if (cfgConsoleWait.IsEqualTo_Ascii_NoCase("true")) doConsoleWait = true;
+    //if (doConsole || doConsoleWait) {
+      //AllocConsole();
+      // This does not work as expected, makes console unusable.
+      //if (!AttachConsole(ATTACH_PARENT_PROCESS)) {
+
+        //AttachConsole(GetCurrentProcessId());
+        //HWND Handle = GetConsoleWindow();
+      //}
+      //FILE* fp;
+      //bool result = true;
+      // Redirect STDIN if the console has an input handle
+      //if (GetStdHandle(STD_INPUT_HANDLE) != INVALID_HANDLE_VALUE) {
+      //  if (freopen_s(&fp, "CONIN$", "r", stdin) != 0) {
+      //    result = false;
+      //  }
+      //  else {
+      //    setvbuf(stdin, NULL, _IONBF, 0);
+      //  }
+      //}
+      //// Redirect STDOUT if the console has an output handle
+      //if (GetStdHandle(STD_OUTPUT_HANDLE) != INVALID_HANDLE_VALUE) {
+      //  if (freopen_s(&fp, "CONOUT$", "w", stdout) != 0) {
+      //    result = false;
+      //  }
+      //  else {
+      //    setvbuf(stdout, NULL, _IONBF, 0);
+      //  }
+      //}
+      //// Redirect STDERR if the console has an error handle
+      //if (GetStdHandle(STD_ERROR_HANDLE) != INVALID_HANDLE_VALUE) {
+      //  if (freopen_s(&fp, "CONOUT$", "w", stderr) != 0) {
+      //    result = false;
+      //  }
+      //  else {
+      //    setvbuf(stderr, NULL, _IONBF, 0);
+      //  }
+      //}
+      //std::ios::sync_with_stdio(true);
+      //hConOut = CreateFile(_T("CONOUT$"), GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
+      //SetStdHandle(STD_OUTPUT_HANDLE, hConOut);
+      //std::wcout.clear();
+      //std::cout.clear();
+      //std::wcerr.clear();
+      //std::cerr.clear();
+      //std::wcin.clear();
+      //std::cin.clear();
+    //}
+    ::CloseHandle(hMyProcess);
+    //if (progress.IsEqualTo_Ascii_NoCase("false")) showProgress = false;
+    const int index = FindTextConfigItem(pairs, "Directory");
+    if (index >= 0) dirPrefix = pairs[index].String;
+    //if (!installPrompt.IsEmpty() && !assumeYes) {
+    //  if (MessageBoxW(NULL, installPrompt, friendlyName, MB_YESNO | MB_ICONQUESTION) != IDYES)
+    //    return 2;
+    //}
+    configInstallPath = GetTextConfigValue(pairs, "InstallPath");
+    lpwsInstallPath = new WCHAR[MAX_PATH + 1];
+    ExpandEnvironmentStringsW(us2fs(configInstallPath).Ptr(), lpwsInstallPath, MAX_PATH + 1);
+    installPath = lpwsInstallPath;
+    FinstallPath = us2fs(installPath);
+    //appLaunched = GetTextConfigValue(pairs, "RunProgram");
+    executeFile = GetTextConfigValue(pairs, "ExecuteFile");
+    executeParameters = GetTextConfigValue(pairs, "ExecuteParameters");
   }
-  catch(...)
-  {
-    PrintHelpAndExit();
+  CTempDir tempDir;
+  if (installPath.IsEmpty()) {
+    if (!tempDir.Create(kTempDirPrefix)) {
+      (*g_StdStream) << endl << L"Cannot create temp folder archive" << endl;
+      return 1;
+    }
+    FinstallPath = tempDir.GetPath();
   }
 
-  if (parser[NKey::kHelp1].ThereIs || parser[NKey::kHelp2].ThereIs)
-  {
-    PrintHelp();
-    return 0;
-  }
-  
-  const UStringVector &nonSwitchStrings = parser.NonSwitchStrings;
-
-  unsigned curCommandIndex = 0;
+  //FString arcPath;
+  //{
+  //  FString path;
+  //  NDLL::MyGetModuleFileName(path);
+  //  if (!MyGetFullPathName(path, arcPath))
+  //  {
+  //    g_StdOut << "GetFullPathName Error";
+  //    return NExitCode::kFatalError;
+  //  }
+  //}
 
   CArchiveCommand command;
-  if (nonSwitchStrings.IsEmpty())
-    command.CommandType = NCommandType::kFullExtract;
-  else
-  {
-    const UString &cmd = nonSwitchStrings[curCommandIndex];
-    if (!ParseArchiveCommand(cmd, command))
-    {
-      g_StdOut << "ERROR: Unknown command:" << endl << cmd << endl;
-      return NExitCode::kUserError;
-    }
-    curCommandIndex = 1;
-  }
-
-
+  command.CommandType = NCommandType::kFullExtract;
   NRecursedType::EEnum recursedType;
   recursedType = command.DefaultRecursedType();
+  const bool yesToAll = true;
+  const bool passwordEnabled = false;
 
-  NWildcard::CCensor wildcardCensor;
-  
-  {
-    if (nonSwitchStrings.Size() == curCommandIndex)
-      AddCommandLineWildcardToCensor(wildcardCensor, (UString)kUniversalWildcard, true, recursedType);
-    for (; curCommandIndex < nonSwitchStrings.Size(); curCommandIndex++)
-    {
-      const UString &s = nonSwitchStrings[curCommandIndex];
-      if (s.IsEmpty())
-        throw "Empty file path";
-      AddCommandLineWildcardToCensor(wildcardCensor, s, true, recursedType);
-    }
-  }
-
-  const bool yesToAll = parser[NKey::kYes].ThereIs;
-
-  // NExtractMode::EEnum extractMode;
-  // bool isExtractGroupCommand = command.IsFromExtractGroup(extractMode);
-
-  const bool passwordEnabled = parser[NKey::kPassword].ThereIs;
-
-  UString password;
-  if (passwordEnabled)
-    password = parser[NKey::kPassword].PostStrings[0];
-
-  if (!NFind::DoesFileExist_FollowLink(arcPath))
-    throw kCantFindSFX;
-  
   FString outputDir;
-  if (parser[NKey::kOutputDir].ThereIs)
-  {
-    outputDir = us2fs(parser[NKey::kOutputDir].PostStrings[0]);
-    NName::NormalizeDirPathPrefix(outputDir);
-  }
-
-
-  wildcardCensor.AddPathsToCensor(NWildcard::k_RelatPath);
   
+  UStringVector v1, v2;
+  v1.Add(fs2us(fullPath));
+  v2.Add(fs2us(fullPath));
+  CCodecs *codecs = new CCodecs;
+  CMyComPtr<
+    #ifdef Z7_EXTERNAL_CODECS
+    ICompressCodecsInfo
+    #else
+    IUnknown
+    #endif
+    > compressCodecsInfo = codecs;
   {
-    UStringVector v1, v2;
-    v1.Add(fs2us(arcPath));
-    v2.Add(fs2us(arcPath));
-    const NWildcard::CCensorNode &wildcardCensorHead =
-      wildcardCensor.Pairs.Front().Head;
-
-    CCodecs *codecs = new CCodecs;
-    CMyComPtr<
-      #ifdef Z7_EXTERNAL_CODECS
-      ICompressCodecsInfo
-      #else
-      IUnknown
-      #endif
-      > compressCodecsInfo = codecs;
-    {
-      HRESULT result = codecs->Load();
-      if (result != S_OK)
-        throw CSystemException(result);
-    }
-
-    if (command.CommandType != NCommandType::kList)
-    {
-      CExtractCallbackConsole *ecs = new CExtractCallbackConsole;
-      CMyComPtr<IFolderArchiveExtractCallback> extractCallback = ecs;
-      ecs->Init(g_StdStream, &g_StdErr, g_StdStream, false);
-
-      #ifndef Z7_NO_CRYPTO
-      ecs->PasswordIsDefined = passwordEnabled;
-      ecs->Password = password;
-      #endif
-
-      /*
-      COpenCallbackConsole openCallback;
-      openCallback.Init(g_StdStream, g_StdStream);
-
-      #ifndef Z7_NO_CRYPTO
-      openCallback.PasswordIsDefined = passwordEnabled;
-      openCallback.Password = password;
-      #endif
-      */
-
-      CExtractOptions eo;
-      eo.StdOutMode = false;
-      eo.YesToAll = yesToAll;
-      eo.TestMode = command.CommandType == NCommandType::kTest;
-      eo.PathMode = NExtract::NPathMode::kFullPaths;
-      eo.OverwriteMode = yesToAll ?
-          NExtract::NOverwriteMode::kOverwrite :
-          NExtract::NOverwriteMode::kAsk;
-      eo.OutputDir = outputDir;
-
-      UString errorMessage;
-      CDecompressStat stat;
-      HRESULT result = Extract(
-          codecs, CObjectVector<COpenType>(), CIntVector(),
-          v1, v2,
-          wildcardCensorHead,
-          eo,
-          ecs, ecs, ecs,
-          // NULL, // hash
-          errorMessage, stat);
-
-      ecs->ClosePercents();
-
-      if (!errorMessage.IsEmpty())
-      {
-        (*g_StdStream) << endl << "Error: " << errorMessage;
-        if (result == S_OK)
-          result = E_FAIL;
-      }
-
-      if (   0 != ecs->NumCantOpenArcs
-          || 0 != ecs->NumArcsWithError
-          || 0 != ecs->NumFileErrors
-          || 0 != ecs->NumOpenArcErrors)
-      {
-        if (ecs->NumCantOpenArcs != 0)
-          (*g_StdStream) << endl << "Can't open as archive" << endl;
-        if (ecs->NumArcsWithError != 0)
-          (*g_StdStream) << endl << "Archive Errors" << endl;
-        if (ecs->NumFileErrors != 0)
-          (*g_StdStream) << endl << "Sub items Errors: " << ecs->NumFileErrors << endl;
-        if (ecs->NumOpenArcErrors != 0)
-          (*g_StdStream) << endl << "Open Errors: " << ecs->NumOpenArcErrors << endl;
-        return NExitCode::kFatalError;
-      }
-      if (result != S_OK)
-        throw CSystemException(result);
-    }
-    else
-    {
-      throw CSystemException(E_NOTIMPL);
-
-      /*
-      UInt64 numErrors = 0;
-      UInt64 numWarnings = 0;
-      HRESULT result = ListArchives(
-          codecs, CObjectVector<COpenType>(), CIntVector(),
-          false, // stdInMode
-          v1, v2,
-          true, // processAltStreams
-          false, // showAltStreams
-          wildcardCensorHead,
-          true, // enableHeaders
-          false, // techMode
-          #ifndef Z7_NO_CRYPTO
-          passwordEnabled, password,
-          #endif
-          numErrors, numWarnings);
-      if (numErrors > 0)
-      {
-        g_StdOut << endl << "Errors: " << numErrors;
-        return NExitCode::kFatalError;
-      }
-      if (result != S_OK)
-        throw CSystemException(result);
-      */
-    }
+    HRESULT result = codecs->Load();
+    if (result != S_OK)
+      throw CSystemException(result);
   }
+
+  CExtractCallbackConsole *ecs = new CExtractCallbackConsole;
+  CMyComPtr<IFolderArchiveExtractCallback> extractCallback = ecs;
+  ecs->Init(g_StdStream, &g_StdErr, g_StdStream, false);
+
+  #ifndef Z7_NO_CRYPTO
+  ecs->PasswordIsDefined = passwordEnabled;
+  //ecs->Password = password;
+  #endif
+
+  /*
+  COpenCallbackConsole openCallback;
+  openCallback.Init(g_StdStream, g_StdStream);
+
+  #ifndef Z7_NO_CRYPTO
+  openCallback.PasswordIsDefined = passwordEnabled;
+  openCallback.Password = password;
+  #endif
+  */
+  NWildcard::CCensorNode wildcardCensor;
+  wildcardCensor.Add_Wildcard();
+
+  CExtractOptions eo;
+  eo.StdOutMode = false;
+  eo.YesToAll = true;
+  eo.TestMode = false;//command.CommandType == NCommandType::kTest;
+  eo.PathMode = NExtract::NPathMode::kFullPaths;
+  eo.OverwriteMode = NExtract::NOverwriteMode::kOverwrite;//yesToAll ?
+      //NExtract::NOverwriteMode::kOverwrite :
+      //NExtract::NOverwriteMode::kAsk;
+  eo.OutputDir = FinstallPath;
+
+    UString errorMessage;
+    CDecompressStat stat;
+    HANDLE hConsole = GetStdHandle(STD_OUTPUT_HANDLE);
+    CONSOLE_SCREEN_BUFFER_INFO csbi;
+    bool bNoSep = false;
+    int consoleWidth;
+    if (!GetConsoleScreenBufferInfo(hConsole, &csbi))
+    {
+      bNoSep = true;
+    } else {
+      consoleWidth = csbi.srWindow.Right - csbi.srWindow.Left + 1;
+    }
+    
+    for (int i = 0; i < consoleWidth; ++i) {
+      std::cout << '-';
+    }
+    std::cout << std::endl;
+
+    HRESULT result = Extract(
+        codecs, CObjectVector<COpenType>(), CIntVector(),
+        v1, v2,
+        wildcardCensor,
+        eo,
+        ecs, ecs, ecs,
+        // NULL, // hash
+        errorMessage, stat);
+
+    ecs->ClosePercents();
+
+    if (!errorMessage.IsEmpty())
+    {
+      (*g_StdStream) << endl << "Error: " << errorMessage;
+      if (result == S_OK)
+        result = E_FAIL;
+    }
+
+    if (   0 != ecs->NumCantOpenArcs
+        || 0 != ecs->NumArcsWithError
+        || 0 != ecs->NumFileErrors
+        || 0 != ecs->NumOpenArcErrors)
+    {
+      if (ecs->NumCantOpenArcs != 0)
+        (*g_StdStream) << endl << "Can't open as archive" << endl;
+      if (ecs->NumArcsWithError != 0)
+        (*g_StdStream) << endl << "Archive Errors" << endl;
+      if (ecs->NumFileErrors != 0)
+        (*g_StdStream) << endl << "Sub items Errors: " << ecs->NumFileErrors << endl;
+      if (ecs->NumOpenArcErrors != 0)
+        (*g_StdStream) << endl << "Open Errors: " << ecs->NumOpenArcErrors << endl;
+      return NExitCode::kFatalError;
+    }
+    for (int i = 0; i < consoleWidth; ++i) {
+      std::cout << '-';
+    }
+    std::cout << std::endl;
+    CCurrentDirRestorer currentDirRestorer;
+    if (!SetCurrentDir(FinstallPath)) return 1;
+
+    if (result != S_OK)
+      throw CSystemException(result);
+
+    HANDLE hProcess = NULL;
+    PROCESS_INFORMATION processInformation;
+    if (!executeFile.IsEmpty()) {
+      // appLaunched = L"setup.exe";
+
+      LPWSTR lpwsAppLaunchedSys;
+      lpwsAppLaunchedSys = new WCHAR[MAX_PATH + 1];
+      ExpandEnvironmentStrings(executeFile, lpwsAppLaunchedSys, MAX_PATH + 1);
+      const CSysString appLaunchedSys(
+        GetSystemString(/*dirPrefix + */lpwsAppLaunchedSys));
+
+      if (!NFind::DoesFileExist_FollowLink(us2fs(appLaunchedSys))) {
+        wprintf(L"Cannot find executable!\r\n"+ executeFile +L"\r\n");
+        return 1;
+      }
+      executeFile = us2fs(appLaunchedSys);
+      {
+        FString s2 = installPath;
+        NName::NormalizeDirPathPrefix(s2);
+        executeFile.Replace(L"%%T" WSTRING_PATH_SEPARATOR, fs2us(s2));
+      }
+
+      const UString appNameForError =
+        executeFile;  // actually we need to rtemove parameters also
+
+      executeFile.Replace(L"%%T", fs2us(installPath));
+
+      if (!executeParameters.IsEmpty()) {
+        executeFile.Add_Space();
+        executeFile += executeParameters;
+      }
+
+      if (!switches.IsEmpty()) {
+        executeFile.Add_Space();
+        executeFile += switches;
+      }
+
+      STARTUPINFO startupInfo;
+      ZeroMemory(&startupInfo, sizeof(STARTUPINFO));
+      startupInfo.cb = sizeof(STARTUPINFO);
+      startupInfo.lpReserved = NULL;
+      startupInfo.lpDesktop = NULL;
+      startupInfo.lpTitle = NULL;
+      startupInfo.dwFlags = 0;
+      startupInfo.cbReserved2 = 0;
+      startupInfo.lpReserved2 = NULL;
+
+      PROCESS_INFORMATION processInformation;
+
+
+      const BOOL createResult = CreateProcess(
+        NULL, executeFile.Ptr_non_const(), NULL, NULL, FALSE, 0, NULL,
+        NULL /*tempDir.GetPath() */, &startupInfo, &processInformation);
+      if (createResult == 0) {
+        wprintf(appNameForError+L"\r\n");
+        return 1;
+      }
+      ::CloseHandle(processInformation.hThread);
+      hProcess = processInformation.hProcess;
+    }
+
+    if (hProcess) {
+      WaitForSingleObject(hProcess, INFINITE);
+      ::CloseHandle(hProcess);
+    }
+
+    if (doConsoleWait) {
+      wprintf(L"\r\nPress any key to exit...");
+      _getch();  // Wait for key press before exiting
+    }
+    if (doConsole || doConsoleWait) {
+      FreeConsole();
+    }
   return 0;
 }

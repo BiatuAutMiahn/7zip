@@ -20,7 +20,6 @@
 #endif
 
 #define MY_VERSION_INFO(fileType, descr, intName, origName)  \
-LANGUAGE 9, 1 \
 1 VERSIONINFO \
   FILEVERSION MY_VER \
   PRODUCTVERSION MY_VER \

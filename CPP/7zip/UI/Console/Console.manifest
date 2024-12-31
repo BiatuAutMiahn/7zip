@@ -1,8 +1,7 @@
 <assembly xmlns="urn:schemas-microsoft-com:asm.v1" manifestVersion="1.0">
 <assemblyIdentity version="1.0.0.0" processorArchitecture="*" name="7z" type="win32"></assemblyIdentity>
 <trustInfo xmlns="urn:schemas-microsoft-com:asm.v2">
-<security><requestedPrivileges><requestedExecutionLevel level="asInvoker" uiAccess="false">
-</requestedExecutionLevel></requestedPrivileges></security></trustInfo>
+<security></security></trustInfo>
 <compatibility xmlns="urn:schemas-microsoft-com:compatibility.v1"><application>
 <!-- Vista   --> <supportedOS Id="{e2011457-1546-43c5-a5fe-008deee3d3f0}"/>
 <!-- Win 7   --> <supportedOS Id="{35138b9a-5d96-4fbd-8e2d-a2440225f93a}"/>

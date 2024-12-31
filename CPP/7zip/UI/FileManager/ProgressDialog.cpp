@@ -47,6 +47,42 @@ void CProgressDialog::AddToTitle(LPCWSTR s)
 
 #define UNDEFINED_VAL ((UInt64)(Int64)-1)
 
+//bool CProgressDialog::OnInit()
+//{
+//  _range = UNDEFINED_VAL;
+//  _prevPercentValue = UNDEFINED_VAL;
+//
+//  _wasCreated = true;
+//  _dialogCreatedEvent.Set();
+//
+//  #ifdef Z7_LANG
+//  LangSetDlgItems(*this, NULL, 0);
+//  #endif
+//
+//  m_ProgressBar.Attach(GetItem(IDC_PROGRESS1));
+//
+//  if (IconID >= 0)
+//  {
+//    uint16_t dpi = GetDpiForWindow(_window);
+//
+//    HICON smicon = (HICON)LoadImage(
+//        g_hInstance, MAKEINTRESOURCE(IconID), IMAGE_ICON,
+//        GetSystemMetricsForDpi(SM_CXSMICON, dpi),
+//        GetSystemMetricsForDpi(SM_CYSMICON, dpi), LR_DEFAULTCOLOR);
+//    HICON lgicon = (HICON)LoadImage(
+//        g_hInstance, MAKEINTRESOURCE(IconID), IMAGE_ICON,
+//        GetSystemMetricsForDpi(SM_CXICON, dpi),
+//        GetSystemMetricsForDpi(SM_CYICON, dpi), LR_DEFAULTCOLOR);
+//    SetIcon(ICON_BIG, lgicon);
+//    SetIcon(ICON_SMALL, smicon);
+//  }
+//
+//  _timer = SetTimer(kTimerID, kTimerElapse);
+//  SetText(_title);
+//  CheckNeedClose();
+//  return CModalDialog::OnInit();
+//}
+
 bool CProgressDialog::OnInit()
 {
   _range = UNDEFINED_VAL;
@@ -55,26 +91,16 @@ bool CProgressDialog::OnInit()
   _wasCreated = true;
   _dialogCreatedEvent.Set();
 
-  #ifdef Z7_LANG
+#ifdef Z7_LANG
   LangSetDlgItems(*this, NULL, 0);
-  #endif
+#endif
 
   m_ProgressBar.Attach(GetItem(IDC_PROGRESS1));
 
   if (IconID >= 0)
   {
-    uint16_t dpi = GetDpiForWindow(_window);
-
-    HICON smicon = (HICON)LoadImage(
-        g_hInstance, MAKEINTRESOURCE(IconID), IMAGE_ICON,
-        GetSystemMetricsForDpi(SM_CXSMICON, dpi),
-        GetSystemMetricsForDpi(SM_CYSMICON, dpi), LR_DEFAULTCOLOR);
-    HICON lgicon = (HICON)LoadImage(
-        g_hInstance, MAKEINTRESOURCE(IconID), IMAGE_ICON,
-        GetSystemMetricsForDpi(SM_CXICON, dpi),
-        GetSystemMetricsForDpi(SM_CYICON, dpi), LR_DEFAULTCOLOR);
-    SetIcon(ICON_BIG, lgicon);
-    SetIcon(ICON_SMALL, smicon);
+    HICON icon = LoadIcon(g_hInstance, MAKEINTRESOURCE(IconID));
+    SetIcon(ICON_BIG, icon);
   }
 
   _timer = SetTimer(kTimerID, kTimerElapse);
