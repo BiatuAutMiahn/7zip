@@ -171,7 +171,7 @@ public:
 
   HRESULT Close();
   
-  UInt64 ProcessedSize;
+  UInt64 ProcessedSize=0;
 
   bool SetTime(const CFiTime *cTime, const CFiTime *aTime, const CFiTime *mTime)
   {

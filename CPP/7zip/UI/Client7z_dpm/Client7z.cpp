@@ -338,13 +338,13 @@ class CArchiveExtractCallback Z7_final:
   FString _directoryPath;  // Output directory
   UString _filePath;       // name inside arcvhive
   FString _diskFilePath;   // full path to file on disk
-  bool _extractMode;
+  bool _extractMode=0;
   struct CProcessedFileInfo
   {
     CArcTime MTime;
-    UInt32 Attrib;
-    bool isDir;
-    bool Attrib_Defined;
+    UInt32 Attrib=0;
+    bool isDir=0;
+    bool Attrib_Defined=0;
   } _processedFileInfo;
 
   COutFileStream *_outFileStreamSpec;
@@ -353,8 +353,8 @@ class CArchiveExtractCallback Z7_final:
 public:
   void Init(IInArchive *archiveHandler, const FString &directoryPath);
 
-  UInt64 NumErrors;
-  bool PasswordIsDefined;
+  UInt64 NumErrors=0;
+  bool PasswordIsDefined=0;
   UString Password;
 
   CArchiveExtractCallback() : PasswordIsDefined(false) {}
@@ -634,7 +634,7 @@ public:
   UString Password;
   bool AskPassword;
 
-  bool m_NeedBeClosed;
+  bool m_NeedBeClosed=0;
 
   FStringVector FailedFiles;
   CRecordVector<HRESULT> FailedCodes;
@@ -824,324 +824,55 @@ int Z7_CDECL main(int numArgs, const char *args[])
 {
   NT_CHECK
 
-  #ifdef ENV_HAVE_LOCALE
+ /* #ifdef ENV_HAVE_LOCALE
   MY_SetLocale();
-  #endif
+  #endif*/
 
-  PrintStringLn(kCopyrightString);
+  //PrintStringLn(kCopyrightString);
 
-  if (numArgs < 2)
-  {
-    PrintStringLn(kHelpString);
-    return 0;
-  }
+  //if (numArgs < 2)
+  //{
+  //  PrintStringLn(kHelpString);
+  //  return 0;
+  //}
 
-  FString dllPrefix;
+  //FString dllPrefix;
 
-  #ifdef _WIN32
-  dllPrefix = NDLL::GetModuleDirPrefix();
-  #else
-  {
-    AString s (args[0]);
-    int sep = s.ReverseFind_PathSepar();
-    s.DeleteFrom(sep + 1);
-    dllPrefix = s;
-  }
-  #endif
+  //#ifdef _WIN32
+  //dllPrefix = NDLL::GetModuleDirPrefix();
+  //#else
+  //{
+  //  AString s (args[0]);
+  //  int sep = s.ReverseFind_PathSepar();
+  //  s.DeleteFrom(sep + 1);
+  //  dllPrefix = s;
+  //}
+  //#endif
 
-  NDLL::CLibrary lib;
-  if (!lib.Load(dllPrefix + FTEXT(kDllName)))
-  {
-    PrintError("Cannot load 7-zip library");
-    return 1;
-  }
+  //NDLL::CLibrary lib;
+  //if (!lib.Load(dllPrefix + FTEXT(kDllName)))
+  //{
+  //  PrintError("Cannot load 7-zip library");
+  //  return 1;
+  //}
 
-#if defined(__clang__)
-#pragma GCC diagnostic ignored "-Wc++98-compat-pedantic"
-#endif
+//#if defined(__clang__)
+//#pragma GCC diagnostic ignored "-Wc++98-compat-pedantic"
+//#endif
 
-#ifdef _WIN32
-Z7_DIAGNOSTIC_IGNORE_CAST_FUNCTION
-#endif
+//#ifdef _WIN32
+//Z7_DIAGNOSTIC_IGNORE_CAST_FUNCTION
+//#endif
 
-  Func_CreateObject
-     f_CreateObject = Z7_GET_PROC_ADDRESS(
-  Func_CreateObject, lib.Get_HMODULE(),
-      "CreateObject");
-  if (!f_CreateObject)
-  {
-    PrintError("Cannot get CreateObject");
-    return 1;
-  }
-
-  char c = 0;
-  UString password;
-  bool passwordIsDefined = false;
-  CObjectVector<FString> params;
-
-  for (int curCmd = 1; curCmd < numArgs; curCmd++)
-  {
-    AString a(args[curCmd]);
-
-    if (!a.IsEmpty())
-    {
-      if (a[0] == '-')
-      {
-        if (!passwordIsDefined && a[1] == 'p')
-        {
-          password = GetUnicodeString(a.Ptr(2));
-          passwordIsDefined = true;
-          continue;
-        }
-      }
-      else
-      {
-        if (c)
-        {
-          params.Add(CmdStringToFString(a));
-          continue;
-        }
-        if (a.Len() == 1)
-        {
-          c = (char)MyCharLower_Ascii(a[0]);
-          continue;
-        }
-      }
-    }
-    {
-      PrintError(kIncorrectCommand);
-      return 1;
-    }
-  }
-
-  if (!c || params.Size() < 1)
-  {
-    PrintError(kIncorrectCommand);
-    return 1;
-  }
-
-  const FString &archiveName = params[0];
-  
-  if (c == 'a')
-  {
-    // create archive command
-    if (params.Size() < 2)
-    {
-      PrintError(kIncorrectCommand);
-      return 1;
-    }
-    CObjectVector<CDirItem> dirItems;
-    {
-      unsigned i;
-      for (i = 1; i < params.Size(); i++)
-      {
-        const FString &name = params[i];
-        
-        NFind::CFileInfo fi;
-        if (!fi.Find(name))
-        {
-          PrintError("Can't find file", name);
-          return 1;
-        }
-
-        CDirItem di(fi);
-        
-        di.Path_For_Handler = fs2us(name);
-        di.FullPath = name;
-        dirItems.Add(di);
-      }
-    }
-
-    COutFileStream *outFileStreamSpec = new COutFileStream;
-    CMyComPtr<IOutStream> outFileStream = outFileStreamSpec;
-    if (!outFileStreamSpec->Create_NEW(archiveName))
-    {
-      PrintError("can't create archive file");
-      return 1;
-    }
-
-    CMyComPtr<IOutArchive> outArchive;
-    if (f_CreateObject(&CLSID_Format, &IID_IOutArchive, (void **)&outArchive) != S_OK)
-    {
-      PrintError("Cannot get class object");
-      return 1;
-    }
-
-    CArchiveUpdateCallback *updateCallbackSpec = new CArchiveUpdateCallback;
-    CMyComPtr<IArchiveUpdateCallback2> updateCallback(updateCallbackSpec);
-    updateCallbackSpec->Init(&dirItems);
-    updateCallbackSpec->PasswordIsDefined = passwordIsDefined;
-    updateCallbackSpec->Password = password;
-
-    /*
-    {
-      const wchar_t *names[] =
-      {
-        L"m",
-        L"s",
-        L"x"
-      };
-      const unsigned kNumProps = Z7_ARRAY_SIZE(names);
-      NCOM::CPropVariant values[kNumProps] =
-      {
-        L"lzma",
-        false,    // solid mode OFF
-        (UInt32)9 // compression level = 9 - ultra
-      };
-      CMyComPtr<ISetProperties> setProperties;
-      outArchive->QueryInterface(IID_ISetProperties, (void **)&setProperties);
-      if (!setProperties)
-      {
-        PrintError("ISetProperties unsupported");
-        return 1;
-      }
-      if (setProperties->SetProperties(names, values, kNumProps) != S_OK)
-      {
-        PrintError("SetProperties() error");
-        return 1;
-      }
-    }
-    */
-    
-    HRESULT result = outArchive->UpdateItems(outFileStream, dirItems.Size(), updateCallback);
-    
-    updateCallbackSpec->Finilize();
-    
-    if (result != S_OK)
-    {
-      PrintError("Update Error");
-      return 1;
-    }
-    
-    FOR_VECTOR (i, updateCallbackSpec->FailedFiles)
-    {
-      PrintNewLine();
-      PrintError("Error for file", updateCallbackSpec->FailedFiles[i]);
-    }
-    
-    if (updateCallbackSpec->FailedFiles.Size() != 0)
-      return 1;
-  }
-  else
-  {
-    if (params.Size() != 1)
-    {
-      PrintError(kIncorrectCommand);
-      return 1;
-    }
-
-    bool listCommand;
-    
-    if (c == 'l')
-      listCommand = true;
-    else if (c == 'x')
-      listCommand = false;
-    else
-    {
-      PrintError(kIncorrectCommand);
-      return 1;
-    }
-  
-    CMyComPtr<IInArchive> archive;
-    if (f_CreateObject(&CLSID_Format, &IID_IInArchive, (void **)&archive) != S_OK)
-    {
-      PrintError("Cannot get class object");
-      return 1;
-    }
-    
-    CInFileStream *fileSpec = new CInFileStream;
-    CMyComPtr<IInStream> file = fileSpec;
-    
-    if (!fileSpec->Open(archiveName))
-    {
-      PrintError("Cannot open archive file", archiveName);
-      return 1;
-    }
-
-    {
-      CArchiveOpenCallback *openCallbackSpec = new CArchiveOpenCallback;
-      CMyComPtr<IArchiveOpenCallback> openCallback(openCallbackSpec);
-      openCallbackSpec->PasswordIsDefined = passwordIsDefined;
-      openCallbackSpec->Password = password;
-      
-      const UInt64 scanSize = 1 << 23;
-      if (archive->Open(file, &scanSize, openCallback) != S_OK)
-      {
-        PrintError("Cannot open file as archive", archiveName);
-        return 1;
-      }
-    }
-    
-    if (listCommand)
-    {
-      // List command
-      UInt32 numItems = 0;
-      archive->GetNumberOfItems(&numItems);
-      for (UInt32 i = 0; i < numItems; i++)
-      {
-        {
-          // Get uncompressed size of file
-          NCOM::CPropVariant prop;
-          archive->GetProperty(i, kpidSize, &prop);
-          char s[64];
-          ConvertPropVariantToShortString(prop, s);
-          Print(s);
-          Print("  ");
-        }
-        {
-          // Get name of file
-          NCOM::CPropVariant prop;
-          archive->GetProperty(i, kpidPath, &prop);
-          if (prop.vt == VT_BSTR)
-            Print(prop.bstrVal);
-          else if (prop.vt != VT_EMPTY)
-            Print("ERROR!");
-        }
-        PrintNewLine();
-      }
-    }
-    else
-    {
-      // Extract command
-      CArchiveExtractCallback *extractCallbackSpec = new CArchiveExtractCallback;
-      CMyComPtr<IArchiveExtractCallback> extractCallback(extractCallbackSpec);
-      extractCallbackSpec->Init(archive, FString()); // second parameter is output folder path
-      extractCallbackSpec->PasswordIsDefined = passwordIsDefined;
-      extractCallbackSpec->Password = password;
-
-      /*
-      const wchar_t *names[] =
-      {
-        L"mt",
-        L"mtf"
-      };
-      const unsigned kNumProps = sizeof(names) / sizeof(names[0]);
-      NCOM::CPropVariant values[kNumProps] =
-      {
-        (UInt32)1,
-        false
-      };
-      CMyComPtr<ISetProperties> setProperties;
-      archive->QueryInterface(IID_ISetProperties, (void **)&setProperties);
-      if (setProperties)
-      {
-        if (setProperties->SetProperties(names, values, kNumProps) != S_OK)
-        {
-          PrintError("SetProperties() error");
-          return 1;
-        }
-      }
-      */
-
-      HRESULT result = archive->Extract(NULL, (UInt32)(Int32)(-1), false, extractCallback);
-  
-      if (result != S_OK)
-      {
-        PrintError("Extract Error");
-        return 1;
-      }
-    }
-  }
-
+  //Func_CreateObject
+  //   f_CreateObject = Z7_GET_PROC_ADDRESS(
+  //Func_CreateObject, lib.Get_HMODULE(),
+  //    "CreateObject");
+  //if (!f_CreateObject)
+  //{
+  //  PrintError("Cannot get CreateObject");
+  //  return 1;
+  //}
+  dpmMain();
   return 0;
 }
