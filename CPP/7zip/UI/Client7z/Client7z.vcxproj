@@ -1,0 +1,144 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup Label="ProjectConfigurations">
+    <ProjectConfiguration Include="Release|Win32">
+      <Configuration>Release</Configuration>
+      <Platform>Win32</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Debug|Win32">
+      <Configuration>Debug</Configuration>
+      <Platform>Win32</Platform>
+    </ProjectConfiguration>
+  </ItemGroup>
+  <PropertyGroup Label="Globals">
+    <ProjectGuid>{B72C8CA5-AF15-4864-A4A1-11C6AE969399}</ProjectGuid>
+    <Keyword>Win32Proj</Keyword>
+    <RootNamespace>Client7z</RootNamespace>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'" Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+    <CharacterSet>MultiByte</CharacterSet>
+    <PlatformToolset>v143</PlatformToolset>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+    <UseDebugLibraries>true</UseDebugLibraries>
+    <CharacterSet>MultiByte</CharacterSet>
+    <PlatformToolset>v143</PlatformToolset>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+  <ImportGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'" Label="PropertySheets">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <ImportGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="PropertySheets">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
+    <OutDir>Release</OutDir>
+    <IntDir>Release</IntDir>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
+    <OutDir>Debug</OutDir>
+    <IntDir>Debug</IntDir>
+  </PropertyGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
+    <ClCompile>
+      <WarningLevel>Level4</WarningLevel>
+      <TreatWarningAsError>true</TreatWarningAsError>
+      <PreprocessorDefinitions>WIN32;NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PrecompiledHeader>Use</PrecompiledHeader>
+    </ClCompile>
+    <Link>
+      <OutputFile>Release/7zcl.exe</OutputFile>
+      <SubSystem>Console</SubSystem>
+    </Link>
+    <ResourceCompile>
+      <PreprocessorDefinitions>NDEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <Culture>0x0419</Culture>
+    </ResourceCompile>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
+    <ClCompile>
+      <WarningLevel>Level4</WarningLevel>
+      <TreatWarningAsError>true</TreatWarningAsError>
+      <PreprocessorDefinitions>WIN32;_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <BasicRuntimeChecks>StackFrameRuntimeCheck</BasicRuntimeChecks>
+      <PrecompiledHeader>Use</PrecompiledHeader>
+    </ClCompile>
+    <Link>
+      <OutputFile>Debug/7zcl.exe</OutputFile>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+      <SubSystem>Console</SubSystem>
+    </Link>
+    <ResourceCompile>
+      <PreprocessorDefinitions>_DEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <Culture>0x0419</Culture>
+    </ResourceCompile>
+  </ItemDefinitionGroup>
+  <ItemGroup>
+    <ClCompile Include=".\StdAfx.cpp">
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">Create</PrecompiledHeader>
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">Create</PrecompiledHeader>
+    </ClCompile>
+    <ClCompile Include="..\..\..\Windows\DLL.cpp" />
+    <ClCompile Include="..\..\..\Windows\FileDir.cpp" />
+    <ClCompile Include="..\..\..\Windows\FileFind.cpp" />
+    <ClCompile Include="..\..\..\Windows\FileIO.cpp" />
+    <ClCompile Include="..\..\..\Windows\FileName.cpp" />
+    <ClCompile Include="..\..\..\Windows\PropVariant.cpp" />
+    <ClCompile Include="..\..\..\Windows\PropVariantConv.cpp" />
+    <ClCompile Include="..\..\..\Windows\TimeUtils.cpp" />
+    <ClCompile Include="..\..\..\Common\IntToString.cpp" />
+    <ClCompile Include="..\..\..\Common\MyString.cpp" />
+    <ClCompile Include="..\..\..\Common\MyVector.cpp" />
+    <ClCompile Include="..\..\..\Common\NewHandler.cpp" />
+    <ClCompile Include="..\..\..\Common\StringConvert.cpp" />
+    <ClCompile Include="..\..\..\Common\Wildcard.cpp" />
+    <ClCompile Include="..\..\Common\FileStreams.cpp" />
+    <ClCompile Include=".\Client7z.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include=".\StdAfx.h" />
+    <ClInclude Include="..\..\..\Windows\Defs.h" />
+    <ClInclude Include="..\..\..\Windows\DLL.h" />
+    <ClInclude Include="..\..\..\Windows\FileDir.h" />
+    <ClInclude Include="..\..\..\Windows\FileFind.h" />
+    <ClInclude Include="..\..\..\Windows\FileIO.h" />
+    <ClInclude Include="..\..\..\Windows\FileName.h" />
+    <ClInclude Include="..\..\..\Windows\NtCheck.h" />
+    <ClInclude Include="..\..\..\Windows\PropVariant.h" />
+    <ClInclude Include="..\..\..\Windows\PropVariantConv.h" />
+    <ClInclude Include="..\..\..\Windows\TimeUtils.h" />
+    <ClInclude Include="..\..\..\Common\Common.h" />
+    <ClInclude Include="..\..\..\Common\Defs.h" />
+    <ClInclude Include="..\..\..\Common\IntToString.h" />
+    <ClInclude Include="..\..\..\Common\MyBuffer.h" />
+    <ClInclude Include="..\..\..\Common\MyCom.h" />
+    <ClInclude Include="..\..\..\Common\MyInitGuid.h" />
+    <ClInclude Include="..\..\..\Common\MyLinux.h" />
+    <ClInclude Include="..\..\..\Common\MyString.h" />
+    <ClInclude Include="..\..\..\Common\MyTypes.h" />
+    <ClInclude Include="..\..\..\Common\MyVector.h" />
+    <ClInclude Include="..\..\..\Common\MyWindows.h" />
+    <ClInclude Include="..\..\..\Common\NewHandler.h" />
+    <ClInclude Include="..\..\..\Common\StringConvert.h" />
+    <ClInclude Include="..\..\..\Common\Wildcard.h" />
+    <ClInclude Include="..\..\Common\FileStreams.h" />
+    <ClInclude Include="..\..\Common\UniqBlocks.h" />
+    <ClInclude Include="..\..\..\..\C\7zTypes.h" />
+    <ClInclude Include="..\..\..\..\C\7zVersion.h" />
+    <ClInclude Include="..\..\..\..\C\7zWindows.h" />
+    <ClInclude Include="..\..\..\..\C\Compiler.h" />
+    <ClInclude Include="..\..\..\..\C\CpuArch.h" />
+    <ClInclude Include="..\..\IDecl.h" />
+    <ClInclude Include="..\..\IPassword.h" />
+    <ClInclude Include="..\..\IProgress.h" />
+    <ClInclude Include="..\..\PropID.h" />
+    <ClInclude Include="..\..\Archive\IArchive.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <ResourceCompile Include=".\resource.rc" />
+  </ItemGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+</Project>
