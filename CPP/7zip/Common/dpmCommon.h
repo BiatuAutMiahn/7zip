@@ -89,7 +89,7 @@ static const char* const kHeadersError="Headers Error";
 
 std::wstring_convert<std::codecvt_utf16<wchar_t,0x10ffff,std::little_endian>,wchar_t> convu16le;
 
-bool dpmDoUpdate=true;
+bool dpmDoUpdate=0;
 
 // STDMETHODIMP CArchiveExtractCallbackMem::CryptoGetTextPassword(BSTR*
 // password){
@@ -275,14 +275,14 @@ static std::wregex exp_dc(L"^class\\s*=\\s*(.*)?(?:\\s*;.*)?$");  // Match Class
 static std::wregex exp_dg(
     L"^classguid\\s*=\\s*(.*)?(?:\\s*;.*)?$");  // Match ClassGuid
 static std::wregex exp_mfgm(
-    L"^[^=]+=\\s*([^,]+)(?:\\s*(?:,\\s*([^\\r\\n;]+)\\s*)+)?.*");  //(L"^(\".+\"|%[^\\s=]+%)\\s*=\\s*([^,\\s]+)(?:(?:,\\s*([^;\\r]*))+)?(?:[.\\s\\r\\n]+)?$");
+    L"^[^=]+=\\s*([^,\\s]+)(?:\\s*(?:,\\s*([^\\r\\n;]+)\\s*)+)?.*");  //(L"^(\".+\"|%[^\\s=]+%)\\s*=\\s*([^,\\s]+)(?:(?:,\\s*([^;\\r]*))+)?(?:[.\\s\\r\\n]+)?$");
 ////^(\".+\"|[^=]+)=([^,]+)(?:(?:,\\s*([^;]*))+)?(?:\\s*;.*)?$");
 static std::wregex exp_mfgd(
     L"^(\".+\"|[^=]+)=[^,]+,\\s*(?:,\\s*)?([^;]*)(?:\\s*;.*)?$");
 static std::wregex exp_saqm(
     L"^(?:\"([^=\"]+)\")\\s*=\\s*\"{1,2}?([^=\"]*)\"{1,2}?\\s*$");
 static std::wregex exp_sabm(L"^(?:([^=]+))\\s*=\\s*\"*([^=\"]+)\"*\\s*$");
-static std::wregex exp_sam(L"^(?:([^=\\s]+))\\s*=\\s*\"*([^=\"]+)\"*\\s*$");
+static std::wregex exp_sam(L"^([^=\\s]+)\\s*=\\s*(?:\"((?:[^\"]|\"\")*)\"|([^;]*?))\\s*(?:;\\s*(?:.*))?$");//^([^=\\s]+)\\s*=\\s*(?:\"((?:[^\"]|\"\")*)\"|([^\\s\"]+))\\s*$
 static std::wregex exp_s(
     L"[^\\[\\]]*\\[([^\\[\\]]+)\\][^\\[\\]]*");  // Match Inf Section
 static std::wregex exp_sra(
@@ -395,10 +395,11 @@ Z7_COM7F_IMF(DPM_CArchiveOpenCallback::CryptoGetTextPassword(BSTR* password)){
     return StringToBstr(Password,password);
 }
 
-
 class DPM_CArchiveExtractCallbackMem Z7_final:
-    public IArchiveExtractCallback,
-    public ICryptoGetTextPassword,
+    public IArchiveExtractCallback,     // For archive extraction notifications
+    public ICryptoGetTextPassword,    // For password handling
+    public ISequentialOutStream,      // To BE the output stream for in-memory extraction
+    public IProgress,                 // To handle progress notifications
     public CMyUnknownImp{
     Z7_IFACES_IMP_UNK_2(IArchiveExtractCallback,ICryptoGetTextPassword)
         Z7_IFACE_COM7_IMP(IProgress)
@@ -423,10 +424,31 @@ class DPM_CArchiveExtractCallbackMem Z7_final:
 
 public:
     void Init(IInArchive* archiveHandler,const wchar_t* fnMatch);
+    // IProgress methods (can be Z7_IFACE_COM7_IMP(IProgress) or manually implemented)
+    //STDMETHOD(SetTotal)(UInt64 size);
+    //STDMETHOD(SetCompleted)(const UInt64* completeValue);
+
+    // IArchiveExtractCallback methods
+    //STDMETHOD(GetStream)(UInt32 index,ISequentialOutStream** outStream,Int32 askExtractMode);
+    //STDMETHOD(PrepareOperation)(Int32 askExtractMode) ;
+    //STDMETHOD(SetOperationResult)(Int32 resultEOperationResult);
+
+    // ICryptoGetTextPassword method
+    //STDMETHOD(CryptoGetTextPassword)(BSTR* password);
+
+    // ISequentialOutStream method
+    STDMETHOD(Write)(const void* data,UInt32 size,UInt32* processedSize);
     std::vector<vecBuf> _vBuf;
     UInt64 NumErrors=0;
     bool PasswordIsDefined;
     UString Password;
+    //STDMETHOD(Write)(const void* data,UInt32 size,UInt32* processedSize){
+    //    file_data.insert(file_data.length(),(const char*)data,size);
+    //    if(*processedSize)
+    //        *processedSize=size;
+    //    return S_OK;
+    //}
+
     void vecBufReset(vecBuf& vec){
         //std::wstring().swap(vec.fData);
         vec.fData.clear();

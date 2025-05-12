@@ -119,7 +119,7 @@ extern int dpmMain(){
                 dpPerfArc.start();
                 std::wprintf(L"Extracting %s Driver INFs...",
                              localDPs[i].dpFileName.c_str());
-                //dpGetInfs(localDPs[i]);
+                dpGetInfs(localDPs[i]);
                 std::wprintf(L"done\r\n");
                 dpPerfArc.chkpt();
                 wprintf(L"Inf Extract time: %0.4fms\r\n\r\n",dpPerfArc.tLast);
@@ -582,6 +582,25 @@ void DPM_CArchiveExtractCallbackMem::Init(IInArchive* archiveHandler,const wchar
     //IInArchive* archiveHandler,
     _fnMatch=fnMatch;
 }
+//STDMETHOD(Write)(const void* data,UInt32 size,UInt32* processedSize){
+//    file_data.insert(file_data.length(),(const char*)data,size);
+//    if(*processedSize)
+//        *processedSize=size;
+//    return S_OK;
+//}
+//Z7_COM7F_IMF(DPM_CArchiveExtractCallbackMem::Write(const void* data,UInt32 size,UInt32* processedSize)){
+//    file_data.insert(file_data.length(),(const char*)data,size);
+//    if(*processedSize)
+//        *processedSize=size;
+//    return S_OK;
+//}
+Z7_COM7F_IMF(DPM_CArchiveExtractCallbackMem::Write(const void* data,UInt32 size,UInt32* processedSize)){
+    file_data.append(static_cast<const char*>(data),size); // Use append for std::string
+    if(processedSize){ // Check if the pointer is not null
+        *processedSize=size;
+    }
+    return S_OK;
+}
 
 Z7_COM7F_IMF(DPM_CArchiveExtractCallbackMem::SetTotal(UInt64 /* size */)){
     return S_OK;
@@ -660,8 +679,12 @@ Z7_COM7F_IMF(DPM_CArchiveExtractCallbackMem::GetStream(UInt32 index,ISequentialO
     if(newFileSize>0){ // Reserve memory for the file data
         file_data.reserve(newFileSize);
     }
-    //*outStream=this;
-    this->QueryInterface(IID_ISequentialOutStream,(void**)outStream);
+    //this->QueryInterface(IID_ISequentialOutStream,(void**)outStream);
+    *outStream=this;
+    //ISequentialOutStream* outStreamPtr=static_cast<ISequentialOutStream*>(this);
+    //HRESULT hrQI=this->QueryInterface(IID_ISequentialOutStream,(void**)outStream);
+    //*outStream=outStreamPtr;
+    //this->AddRef();
     AddRef();
 
     return S_OK;
@@ -1483,11 +1506,7 @@ bool dpGenDB(dp& oDP){
             continue;
         }
         infStart=std::chrono::high_resolution_clock::now();
-        wprintf(L"%d\\%d (%0.2f%%): %s\r\n",j+(uint32_t)1,oDP.vInfs.size(),
-                (static_cast<double>(j+(uint32_t)1)/
-                 static_cast<double>(oDP.vInfs.size()))*
-                100,
-                oDP.vInfs[j].fPath.c_str());
+        //wprintf(L"%d\\%d (%0.2f%%): %s\r\n",j+(uint32_t)1,oDP.vInfs.size(),(static_cast<double>(j+(uint32_t)1)/static_cast<double>(oDP.vInfs.size()))*100,oDP.vInfs[j].fPath.c_str());
         drvReset(newDriver);
         if(std::regex_match(oDP.vInfs[j].fPath,exp_fnp)){
             newDriver.fPath=std::regex_replace(oDP.vInfs[j].fPath,exp_fnp,
@@ -1579,6 +1598,7 @@ bool dpGenDB(dp& oDP){
                     // if(lineFilter(line)) continue;
                     if(std::regex_match(line,exp_mfgm)){
                         submfgr=std::regex_replace(line,exp_mfgm,L"$1");
+                        //wprintf(L"\r\n%s\r\n",line.c_str());
                         trim(submfgr);
                         mfgsects.push_back(submfgr);
                         submfgs.clear();
@@ -1588,19 +1608,15 @@ bool dpGenDB(dp& oDP){
                             trim(submfgs);
                             std::wstring smfgs=submfgr+L'.'+submfgs;
                             mfgsects.push_back(smfgs);
-                            if(std::find(newDriver.drvPlats.begin(),
-                                         newDriver.drvPlats.end(),
-                                         submfgs)==newDriver.drvPlats.end()){
+                            if(std::find(newDriver.drvPlats.begin(),newDriver.drvPlats.end(),submfgs)==newDriver.drvPlats.end()){
                                 newDriver.drvPlats.push_back(submfgs);
                             }
                         }
                     } else{
-                        wprintf(L"MfgMisMatch@%s\\%s,%d:%s\r\n",newDriver.fPath.c_str(),
-                                newDriver.fName.c_str(),iLine,line.c_str());
-                        //
-                        std::wcout<<L"MfgMisMatch@"+newDriver.fPath+L"\\"+newDriver.fName+L","+s2ws(std::to_string(iLine))+L"="+std::wstring(line);
-                        // wcout<<endl;
+                        wprintf(L"MfgMisMatch@%s\\%s,%d:%s\r\n",newDriver.fPath.c_str(),newDriver.fName.c_str(),iLine,line.c_str());
                     }
+                //} else if(infSect.sect==L"strings"){
+                //    std::wcout<<L"catch";
                 }
             }
         }
@@ -1615,354 +1631,334 @@ bool dpGenDB(dp& oDP){
                 // infSect.lines.push_back(std::regex_replace(line,ea,L"$1"));
                 if(!lineFilter(line)) infSect.lines.push_back(line);
                 //} else{
-                //
-                std::wcout<<L"AssignMisMatch@"+newDriver.fPath+L"\\"+newDriver.fName+L","+s2ws(std::to_string(iLine))+L"="+std::wstring(line);
+                //std::wcout<<L"AssignMisMatch@"+newDriver.fPath+L"\\"+newDriver.fName+L","+s2ws(std::to_string(iLine))+L"="+std::wstring(line);
                 //    wcout<<endl;
                 //    continue;
                 //}
-                //}
-                infSect.lines.shrink_to_fit();
-                vecInf.push_back(infSect);
-                preallocSectLines=0;
-                infSect.lines.clear();
-                infSect.lines.shrink_to_fit();
-                infSect.sect.clear();
             }
-            if(vecInf.size()==0){
-                // Inf contains no sections.
-                continue;
-            }
-            if(!vecInfHasSect(vecInf,L"version")){
-                wprintf(L"noVerSect\r\n");
-                continue;
-            }
-            if(!vecInfHasSect(vecInf,L"manufacturer")){
-                wprintf(L"noMfgSect\r\n");
-                continue;
-            }
-            // sInf.str(std::wstring());
-            // extractCallbackSpec->vecBufReset(vInf);
-            // extractCallbackSpec->vecBufReset(vInfs[j]);
-            // vector<wstring>().swap(mfgsects);
-            ppEnd=std::chrono::high_resolution_clock::now();
-            ppElapsed=ppEnd-ppStart;
-            // wprintf(L"PreProc time: %0.4fs\r\n", ppElapsed.count());
-            // if(ppElapsed.count()>=4){
-            //     wcout<<"catch";
-            // }
-            line.clear();
-            sInf.str(std::wstring());
-            sInf.clear();
-            // continue;
-            metaStart=std::chrono::high_resolution_clock::now();
-            // preallocStrRef=0;
-            dpStrRefs.clear();
-
-            for(auto&& x:vecInf){
-                sect.clear();
-                sect=x.sect;
-                // std::transform(sect.begin(),sect.end(),sect.begin(),::tolower);
-                if(x.sect==L"version"){
-                    for(auto&& y:x.lines){
-                        //
-                        // if (newDriver.fName == L"hellofacemigration.inf")
-                        //    assert("test");
-                        if(std::regex_match(y,exp_dvsm)){
-                            noDrvVer=false;
-                            if(std::regex_match(y,exp_dv)){
-                                std::wstring ddate=std::regex_replace(y,exp_dv,L"$1");
-                                std::wstring dver=std::regex_replace(y,exp_dv,L"$2");
-                                if(ddate.size()!=y.size()){
-                                    newDriver.drvDate=ddate;
-                                }
-                                if(dver.size()!=y.size()){
-                                    newDriver.drvVer=dver;
-                                }
-
-                                /*} else if(std::regex_match(y,exp_dvod)){
-                                    wstring ddate=std::regex_replace(y, exp_dvod,L"$1");
-                                    if (ddate.size() != y.size()) {
-                                        newDriver.drvDate=ddate;
-                                    }*/
-                            } else{
-                                wprintf(L"VerMisMatch@%s\\%s,%s\r\n",newDriver.fPath.c_str(),
-                                        newDriver.fName.c_str(),y.c_str());
-                            }
-                        }
-                        if(std::regex_match(y,exp_dc)){
-                            std::wstring dclass=std::regex_replace(y,exp_dc,L"$1");
-                            newDriver.drvClass=dclass;
-                        }
-                        if(std::regex_match(y,exp_dg)){
-                            std::wstring dguid=std::regex_replace(y,exp_dg,L"$1");
-                            newDriver.drvClassGuid=dguid;
-                        }
-                    }
-                } else if(x.sect==L"strings"){
-                    // for(auto&& y:x.lines){
-                    //     preallocStrRef++;
-                    // }
-                    // dpStrRefs.reserve(preallocStrRef);
-                    sCapt=false;
-                    for(auto&& y:x.lines){
-                        if(std::regex_match(y,exp_saqm)){
-                            sref.sRef=std::regex_replace(y,exp_sra,L"$1");
-                            sref.sDef=std::regex_replace(y,exp_sra,L"$2");
-                            sCapt=true;
-                        } else if(std::regex_match(y,exp_sam)){
-                            sref.sRef=std::regex_replace(y,exp_sam,L"$1");
-                            sref.sDef=std::regex_replace(y,exp_sam,L"$2");
-                            sCapt=true;
-                        } else if(std::regex_match(y,exp_sabm)){
-                            sref.sRef=std::regex_replace(y,exp_sabm,L"$1");
-                            sref.sDef=std::regex_replace(y,exp_sabm,L"$2");
-                            sCapt=true;
-                        } else{
-                            wprintf(L"InvStrAssign@%s\\%s,%s\r\n",newDriver.fPath.c_str(),
-                                    newDriver.fName.c_str(),y.c_str());
-                        }
-                        if(sCapt){
-                            trim(sref.sRef);
-                            trim(sref.sDef);
-                            std::transform(sref.sRef.begin(),sref.sRef.end(),
-                                           sref.sRef.begin(),::tolower);
-                            bool hasStr=false;
-                            for(auto&& y:dpStrRefs){
-                                if(y.sRef==sref.sRef){
-                                    if(y.sDef!=sref.sDef){
-                                        wprintf(L"RefAltDef@%s\\%s,\"%s\"==\"%s\"!=\"%s\"\r\n",
-                                                newDriver.fPath.c_str(),newDriver.fName.c_str(),
-                                                y.sRef.c_str(),y.sDef.c_str(),sref.sDef.c_str());
-                                    }
-                                    hasStr=true;
-                                    break;
-                                }
-                            }
-                            if(!hasStr) dpStrRefs.push_back(sref);
-                        }
-                    }
-                    // for(auto&& y:dpStrRefs){
-                    //     trim(y.sRef);
-                    //     trim(y.sDef);
-                    //
-                    //std::transform(y.sRef.begin(),y.sRef.end(),y.sRef.begin(),::tolower);
-                    // }
-                    dpStrRefs.shrink_to_fit();
-                }
-            }
-            metaEnd=std::chrono::high_resolution_clock::now();
-            metaElapsed=metaEnd-metaStart;
-            // wprintf(L"MetaProc time: %0.4fs\r\n", metaElapsed.count());
-            // std::cout<<"MetaProc time: "<<metaElapsed.count()<<"s\n";
-            devStart=std::chrono::high_resolution_clock::now();
-            for(auto&& x:mfgsects){
-                for(auto&& y:vecInf){
-                    if(y.sect!=x){
-                        continue;
-                    }
-                    preallocDevRef+=y.lines.size();
-                    // for(auto&& z:y.lines){
-                    //     preallocDevRef++;
-                    // }
-                }
-            }
-            newDriver.devs.reserve(preallocDevRef);
-            for(auto&& x:mfgsects){
-                for(auto&& y:vecInf){
-                    if(y.sect!=x){
-                        continue;
-                    }
-                    for(auto&& z:y.lines){
-                        if(std::regex_match(z,exp_mfgd)){
-                            bool isNew=true;
-                            bool invStr=true;
-                            uint32_t iDev=0;
-                            std::wstring devHwid=std::regex_replace(z,exp_mfgd,L"$2");
-                            // for(auto&& v:newDB.dpDevices){
-                            //     for(auto&& x:newDriver.devs){
-                            //         iDev++;
-                            //         if(devHwid==v&&x.hwid==iDev){
-                            //             isNew=false;
-                            //             break;
-                            //         }
-                            //     }
-                            //     if(!isNew){
-                            //         break;
-                            //     }
-                            // }
-                            if(isNew){
-                                dpdb::driver::dev newDev;
-                                std::wstring desc=std::regex_replace(z,exp_mfgd,L"$1");
-                                std::wstring strTmp=desc;
-                                if(std::regex_match(desc,exp_inlsrm)){
-                                    // strTmp=std::regex_replace(desc,exp_inlsr,L"$1");
-                                    //
-                                    std::transform(desc.begin(),desc.end(),desc.begin(),::tolower);
-                                    std::transform(desc.begin(),desc.end(),desc.begin(),
-                                                   ::tolower);
-                                    std::transform(devHwid.begin(),devHwid.end(),
-                                                   devHwid.begin(),
-                                                   ::tolower);
-                                    strTmp=std::regex_replace(desc,exp_inlsrm,L"$1");
-                                    strTmp=std::regex_replace(strTmp,exp_sr,L"$1");
-                                    for(auto&& w:dpStrRefs){
-                                        if(w.sRef==strTmp){
-                                            strTmp=w.sDef;
-                                            invStr=false;
-                                            break;
-                                        }
-                                    }
-                                    desc=std::regex_replace(desc,exp_inlsr,strTmp);
-                                    trim(desc);
-                                    if(std::regex_match(desc,exp_srq)){
-                                        desc=std::regex_replace(strTmp,exp_srq,L"$1");
-                                        invStr=false;
-                                    }
-                                    if(invStr){
-                                        wprintf(L"StrRefNoMatch@%s\\%s,%s\r\n",
-                                                newDriver.fPath.c_str(),newDriver.fName.c_str(),
-                                                z.c_str());
-                                        //
-                                        std::wcout<<L"StrRefNoMatch@"+newDriver.fPath+L"\\"+newDriver.fName+L","+z;
-                                        // wcout<<endl;
-                                    }
-                                    bool isNewStr=true;
-                                    bool isNewDev=true;
-                                    uint32_t iStr=0;
-                                    iDev=0;
-                                    for(size_t idx=0; idx<oDP.dpDB.dpDevices.size(); ++idx){
-                                        if(devHwid==oDP.dpDB.dpDevices[idx]){
-                                            iDev=idx;
-                                            isNewDev=false;
-                                            break;
-                                        }
-                                    }
-                                    // for(auto&& v:oDP.dpDB.dpDevices){
-                                    //     iDev++;
-                                    //     if(devHwid==v){
-                                    //         isNewDev=false;
-                                    //         break;
-                                    //     }
-                                    // }
-                                    for(size_t idx=0; idx<oDP.dpDB.dpStrings.size(); ++idx){
-                                        if(desc==oDP.dpDB.dpStrings[idx]){
-                                            iStr=idx;
-                                            isNewStr=false;
-                                            break;
-                                        }
-                                    }
-                                    // for(auto&& v:oDP.dpDB.dpStrings){
-                                    //     iStr++;
-                                    //     if(desc==v){
-                                    //         isNewStr=false;
-                                    //         break;
-                                    //     }
-                                    // }
-                                    if(isNewStr){
-                                        trim(desc);
-                                        oDP.dpDB.dpStrings.push_back(desc);
-                                        newDev.desc=dpStrRefPos;
-                                        dpStrRefPos++;
-                                    } else{
-                                        newDev.desc=iStr;
-                                    }
-                                    if(isNewDev){
-                                        trim(devHwid);
-                                        oDP.dpDB.dpDevices.push_back(devHwid);
-                                        newDev.hwid=dpDevRefPos;
-                                        dpDevRefPos++;
-                                    } else{
-                                        newDev.hwid=iDev;
-                                    }
-                                    newDriver.devs.push_back(newDev);
-                                } else{
-                                    wprintf(L"StrAssignMisMatch@%s\\%s,%s\r\n",
-                                            newDriver.fPath.c_str(),newDriver.fName.c_str(),
-                                            z.c_str());
-                                    //
-                                    std::wcout<<L"StrAssignMisMatch@"+newDriver.fPath+L"\\"+newDriver.fName+L","+std::wstring(z);
-                                    // wcout<<endl;
-                                }
-                            }
-                        } else{
-                            wprintf(L"DevMisMatch@%s\\%s,%s\r\n",newDriver.fPath.c_str(),
-                                    newDriver.fName.c_str(),z.c_str());
-                            //
-                            std::wcout<<L"DevMisMatch@"+newDriver.fPath+L"\\"+newDriver.fName+L","+std::wstring(z);
-                            // wcout<<endl;
-                        }
-                    }
-                }
-            }
-            newDriver.devs.shrink_to_fit();
-            devEnd=std::chrono::high_resolution_clock::now();
-            devElapsed=devEnd-devStart;
-            // wprintf(L"DevProc time: %0.4fs\r\n", devElapsed.count());
-            if(newDriver.drvVer.empty()&&newDriver.drvDate.empty()){
-                if(vecInfSectHasVal(vecInf,L"version",exp_dvsm)){
-                    wprintf(L"NoVerDef@%s\\%s\r\n",newDriver.fPath.c_str(),
-                            newDriver.fName.c_str());
-                }
-            }
-            /*if (newDriver.fName==L"FOH02.inf"){
-                continue;
-            }*/
-            if(newDriver.devs.size()==0){
-                wprintf(L"NoDevs@%s\\%s\r\n",newDriver.fPath.c_str(),
-                        newDriver.fName.c_str());
-            }
-            if(newDriver.devs.size()){
-                if(newDriver.drvDate.size()==0&&newDriver.drvVer.size()==0){
-                    if(noDrvVer){
-                        wprintf(L"NoVerInfo@%s\\%s\r\n",newDriver.fPath.c_str(),
-                                newDriver.fName.c_str());
-                    } else{
-                        wprintf(L"VerMisMatch@%s\\%s\r\n",newDriver.fPath.c_str(),
-                                newDriver.fName.c_str());
-                    }
-                }
-                if(newDriver.drvDate.size()==0) newDriver.drvDate=L"01-01-1970";
-                if(newDriver.drvVer.size()==0) newDriver.drvVer=L"0.0.0.0";
-                oDP.dpDB.dpDrivers.push_back(newDriver);
-            }
-            newDriver.devs.clear();
-            newDriver.drvDate.clear();
-            newDriver.drvPlats.clear();
-            newDriver.drvVer.clear();
-            newDriver.fName.clear();
-            newDriver.fPath.clear();
-            newDriver.devs.shrink_to_fit();
-            newDriver.drvDate.shrink_to_fit();
-            newDriver.drvPlats.shrink_to_fit();
-            newDriver.drvVer.shrink_to_fit();
-            newDriver.fName.shrink_to_fit();
-            newDriver.fPath.shrink_to_fit();
-            mfgsects.clear();
-            mfgsects.shrink_to_fit();
-            vecInf.clear();
-            vecInf.shrink_to_fit();
-            infEnd=std::chrono::high_resolution_clock::now();
-            oDP.vInfs[j].fData.clear();
-            oDP.vInfs[j].fData.shrink_to_fit();
-            infElapsed=infEnd-infStart;
-            // wprintf(L"Inf time: %0.4fs\r\n\r\n", infElapsed.count());
-            // std::cout<<"Inf time: "<<infElapsed.count()<<"s\n\n";
+            infSect.lines.shrink_to_fit();
+            vecInf.push_back(infSect);
+            preallocSectLines=0;
+            infSect.lines.clear();
+            infSect.lines.shrink_to_fit();
+            infSect.sect.clear();
         }
+        if(vecInf.size()==0){
+            // Inf contains no sections.
+            continue;
+        }
+        if(!vecInfHasSect(vecInf,L"version")){
+            wprintf(L"noVerSect\r\n");
+            continue;
+        }
+        if(!vecInfHasSect(vecInf,L"manufacturer")){
+            wprintf(L"noMfgSect\r\n");
+            continue;
+        }
+        // sInf.str(std::wstring());
+        // extractCallbackSpec->vecBufReset(vInf);
+        // extractCallbackSpec->vecBufReset(vInfs[j]);
+        // vector<wstring>().swap(mfgsects);
+        ppEnd=std::chrono::high_resolution_clock::now();
+        ppElapsed=ppEnd-ppStart;
+        // wprintf(L"PreProc time: %0.4fs\r\n", ppElapsed.count());
+        // if(ppElapsed.count()>=4){
+        //     wcout<<"catch";
+        // }
+        line.clear();
+        sInf.str(std::wstring());
+        sInf.clear();
+        // continue;
+        metaStart=std::chrono::high_resolution_clock::now();
+        // preallocStrRef=0;
         dpStrRefs.clear();
-        dpStrRefs.shrink_to_fit();
-        dpStrRefPos=0;
-        dpDevRefPos=0;
-        oDP.dpDB.dpStrings.shrink_to_fit();
-        oDP.dpDB.dpDevices.shrink_to_fit();
-        oDP.dpDB.dpDrivers.shrink_to_fit();
-        saveDB(oDP.dpDB);
-        oDP.vInfs.clear();
-        oDP.vInfs.shrink_to_fit();
-        dbEnd=std::chrono::high_resolution_clock::now();
-        dbElapsed=dbEnd-dbStart;
-        std::wprintf(L"DB time: %0.4fs\r\n\r\n",dbElapsed.count());
-        return true;
+        if(oDP.vInfs[j].fPath==L"Broadcom\\FORCED\\5x64\\5.6.0.9110\\btwusb.inf"){
+            std::wcout<<"catch";
+        }
+        for(auto&& x:vecInf){
+            sect.clear();
+            sect=x.sect;
+            // std::transform(sect.begin(),sect.end(),sect.begin(),::tolower);
+            if(x.sect==L"version"){
+                for(auto&& y:x.lines){
+                    //
+                    // if (newDriver.fName == L"hellofacemigration.inf")
+                    //    assert("test");
+                    if(std::regex_match(y,exp_dvsm)){
+                        noDrvVer=false;
+                        if(std::regex_match(y,exp_dv)){
+                            std::wstring ddate=std::regex_replace(y,exp_dv,L"$1");
+                            std::wstring dver=std::regex_replace(y,exp_dv,L"$2");
+                            if(ddate.size()!=y.size()){
+                                newDriver.drvDate=ddate;
+                            }
+                            if(dver.size()!=y.size()){
+                                newDriver.drvVer=dver;
+                            }
+
+                            /*} else if(std::regex_match(y,exp_dvod)){
+                                wstring ddate=std::regex_replace(y, exp_dvod,L"$1");
+                                if (ddate.size() != y.size()) {
+                                    newDriver.drvDate=ddate;
+                                }*/
+                        } else{
+                            wprintf(L"VerMisMatch@%s\\%s,%s\r\n",newDriver.fPath.c_str(),newDriver.fName.c_str(),y.c_str());
+                        }
+                    }
+                    if(std::regex_match(y,exp_dc)){
+                        std::wstring dclass=std::regex_replace(y,exp_dc,L"$1");
+                        newDriver.drvClass=dclass;
+                    }
+                    if(std::regex_match(y,exp_dg)){
+                        std::wstring dguid=std::regex_replace(y,exp_dg,L"$1");
+                        newDriver.drvClassGuid=dguid;
+                    }
+                }
+            } else if(x.sect==L"strings"){
+                // for(auto&& y:x.lines){
+                //     preallocStrRef++;
+                // }
+                // dpStrRefs.reserve(preallocStrRef);
+                sCapt=false;
+                for(auto&& y:x.lines){
+                    if(y==L"Belkin20702A1.DeviceDesc=\"Belkin Bluetooth 4.0 USB Adapter\""){
+                        std::wcout<<"catch";
+                    }
+                    if(std::regex_match(y,exp_saqm)){
+                        sref.sRef=std::regex_replace(y,exp_sra,L"$1");
+                        sref.sDef=std::regex_replace(y,exp_sra,L"$2");
+                        sCapt=true;
+                    } else if(std::regex_match(y,exp_sam)){
+                        sref.sRef=std::regex_replace(y,exp_sam,L"$1");
+                        sref.sDef=std::regex_replace(y,exp_sam,L"$2");
+                        sCapt=true;
+                    } else if(std::regex_match(y,exp_sabm)){
+                        sref.sRef=std::regex_replace(y,exp_sabm,L"$1");
+                        sref.sDef=std::regex_replace(y,exp_sabm,L"$2");
+                        sCapt=true;
+                    } else{
+                        wprintf(L"InvStrAssign@%s\\%s,%s\r\n",newDriver.fPath.c_str(),newDriver.fName.c_str(),y.c_str());
+                    }
+                    if(sCapt){
+                        trim(sref.sRef);
+                        trim(sref.sDef);
+                        std::transform(sref.sRef.begin(),sref.sRef.end(),sref.sRef.begin(),::tolower);
+                        bool hasStr=false;
+                        for(auto&& y:dpStrRefs){
+                            if(y.sRef==sref.sRef){
+                                if(y.sDef!=sref.sDef){
+                                    wprintf(L"RefAltDef@%s\\%s,\"%s\"==\"%s\"!=\"%s\"\r\n",newDriver.fPath.c_str(),newDriver.fName.c_str(),y.sRef.c_str(),y.sDef.c_str(),sref.sDef.c_str());
+                                }
+                                hasStr=true;
+                                break;
+                            }
+                        }
+                        if(!hasStr) dpStrRefs.push_back(sref);
+                    }
+                }
+                // for(auto&& y:dpStrRefs){
+                //     trim(y.sRef);
+                //     trim(y.sDef);
+                //
+                //std::transform(y.sRef.begin(),y.sRef.end(),y.sRef.begin(),::tolower);
+                // }
+                dpStrRefs.shrink_to_fit();
+            }
+        }
+        metaEnd=std::chrono::high_resolution_clock::now();
+        metaElapsed=metaEnd-metaStart;
+        // wprintf(L"MetaProc time: %0.4fs\r\n", metaElapsed.count());
+        // std::cout<<"MetaProc time: "<<metaElapsed.count()<<"s\n";
+        devStart=std::chrono::high_resolution_clock::now();
+        for(auto&& x:mfgsects){
+            for(auto&& y:vecInf){
+                if(y.sect!=x){
+                    continue;
+                }
+                preallocDevRef+=y.lines.size();
+                // for(auto&& z:y.lines){
+                //     preallocDevRef++;
+                // }
+            }
+        }
+        newDriver.devs.reserve(preallocDevRef);
+        for(auto&& x:mfgsects){
+            for(auto&& y:vecInf){
+                if(y.sect!=x){
+                    continue;
+                }
+                for(auto&& z:y.lines){
+                    if(std::regex_match(z,exp_mfgd)){
+                        bool isNew=true;
+                        bool invStr=true;
+                        uint32_t iDev=0;
+                        std::wstring devHwid=std::regex_replace(z,exp_mfgd,L"$2");
+                        // for(auto&& v:newDB.dpDevices){
+                        //     for(auto&& x:newDriver.devs){
+                        //         iDev++;
+                        //         if(devHwid==v&&x.hwid==iDev){
+                        //             isNew=false;
+                        //             break;
+                        //         }
+                        //     }
+                        //     if(!isNew){
+                        //         break;
+                        //     }
+                        // }
+                        if(isNew){
+                            dpdb::driver::dev newDev;
+                            std::wstring desc=std::regex_replace(z,exp_mfgd,L"$1");
+                            std::wstring strTmp=desc;
+                            if(std::regex_match(desc,exp_inlsrm)){
+                                // strTmp=std::regex_replace(desc,exp_inlsr,L"$1");
+                                //
+                                std::transform(desc.begin(),desc.end(),desc.begin(),::tolower);
+                                std::transform(desc.begin(),desc.end(),desc.begin(),
+                                                ::tolower);
+                                std::transform(devHwid.begin(),devHwid.end(),
+                                                devHwid.begin(),
+                                                ::tolower);
+                                strTmp=std::regex_replace(desc,exp_inlsrm,L"$1");
+                                strTmp=std::regex_replace(strTmp,exp_sr,L"$1");
+                                for(auto&& w:dpStrRefs){
+                                    if(w.sRef==strTmp){
+                                        strTmp=w.sDef;
+                                        invStr=false;
+                                        break;
+                                    }
+                                }
+                                desc=std::regex_replace(desc,exp_inlsr,strTmp);
+                                trim(desc);
+                                if(std::regex_match(desc,exp_srq)){
+                                    desc=std::regex_replace(strTmp,exp_srq,L"$1");
+                                    invStr=false;
+                                }
+                                if(invStr){
+                                    wprintf(L"StrRefNoMatch@%s\\%s,%s\r\n",newDriver.fPath.c_str(),newDriver.fName.c_str(),z.c_str());
+                                }
+                                bool isNewStr=true;
+                                bool isNewDev=true;
+                                uint32_t iStr=0;
+                                iDev=0;
+                                for(size_t idx=0; idx<oDP.dpDB.dpDevices.size(); ++idx){
+                                    if(devHwid==oDP.dpDB.dpDevices[idx]){
+                                        iDev=idx;
+                                        isNewDev=false;
+                                        break;
+                                    }
+                                }
+                                // for(auto&& v:oDP.dpDB.dpDevices){
+                                //     iDev++;
+                                //     if(devHwid==v){
+                                //         isNewDev=false;
+                                //         break;
+                                //     }
+                                // }
+                                for(size_t idx=0; idx<oDP.dpDB.dpStrings.size(); ++idx){
+                                    if(desc==oDP.dpDB.dpStrings[idx]){
+                                        iStr=idx;
+                                        isNewStr=false;
+                                        break;
+                                    }
+                                }
+                                // for(auto&& v:oDP.dpDB.dpStrings){
+                                //     iStr++;
+                                //     if(desc==v){
+                                //         isNewStr=false;
+                                //         break;
+                                //     }
+                                // }
+                                if(isNewStr){
+                                    trim(desc);
+                                    oDP.dpDB.dpStrings.push_back(desc);
+                                    newDev.desc=dpStrRefPos;
+                                    dpStrRefPos++;
+                                } else{
+                                    newDev.desc=iStr;
+                                }
+                                if(isNewDev){
+                                    trim(devHwid);
+                                    oDP.dpDB.dpDevices.push_back(devHwid);
+                                    newDev.hwid=dpDevRefPos;
+                                    dpDevRefPos++;
+                                } else{
+                                    newDev.hwid=iDev;
+                                }
+                                newDriver.devs.push_back(newDev);
+                            } else{
+                                wprintf(L"StrAssignMisMatch@%s\\%s,%s\r\n",newDriver.fPath.c_str(),newDriver.fName.c_str(),z.c_str());
+                            }
+                        }
+                    } else{
+                        wprintf(L"DevMisMatch@%s\\%s,%s\r\n",newDriver.fPath.c_str(),newDriver.fName.c_str(),z.c_str());
+                    }
+                }
+            }
+        }
+        newDriver.devs.shrink_to_fit();
+        devEnd=std::chrono::high_resolution_clock::now();
+        devElapsed=devEnd-devStart;
+        // wprintf(L"DevProc time: %0.4fs\r\n", devElapsed.count());
+        if(newDriver.drvVer.empty()&&newDriver.drvDate.empty()){
+            if(vecInfSectHasVal(vecInf,L"version",exp_dvsm)){
+                wprintf(L"NoVerDef@%s\\%s\r\n",newDriver.fPath.c_str(),newDriver.fName.c_str());
+            }
+        }
+        /*if (newDriver.fName==L"FOH02.inf"){
+            continue;
+        }*/
+        if(newDriver.devs.size()==0){
+            wprintf(L"NoDevs@%s\\%s\r\n",newDriver.fPath.c_str(),newDriver.fName.c_str());
+        }
+        if(newDriver.devs.size()){
+            if(newDriver.drvDate.size()==0&&newDriver.drvVer.size()==0){
+                if(noDrvVer){
+                    wprintf(L"NoVerInfo@%s\\%s\r\n",newDriver.fPath.c_str(),newDriver.fName.c_str());
+                } else{
+                    wprintf(L"VerMisMatch@%s\\%s\r\n",newDriver.fPath.c_str(),newDriver.fName.c_str());
+                }
+            }
+            if(newDriver.drvDate.size()==0) newDriver.drvDate=L"01-01-1970";
+            if(newDriver.drvVer.size()==0) newDriver.drvVer=L"0.0.0.0";
+            oDP.dpDB.dpDrivers.push_back(newDriver);
+        }
+        newDriver.devs.clear();
+        newDriver.drvDate.clear();
+        newDriver.drvPlats.clear();
+        newDriver.drvVer.clear();
+        newDriver.fName.clear();
+        newDriver.fPath.clear();
+        newDriver.devs.shrink_to_fit();
+        newDriver.drvDate.shrink_to_fit();
+        newDriver.drvPlats.shrink_to_fit();
+        newDriver.drvVer.shrink_to_fit();
+        newDriver.fName.shrink_to_fit();
+        newDriver.fPath.shrink_to_fit();
+        mfgsects.clear();
+        mfgsects.shrink_to_fit();
+        vecInf.clear();
+        vecInf.shrink_to_fit();
+        infEnd=std::chrono::high_resolution_clock::now();
+        oDP.vInfs[j].fData.clear();
+        oDP.vInfs[j].fData.shrink_to_fit();
+        infElapsed=infEnd-infStart;
+        // wprintf(L"Inf time: %0.4fs\r\n\r\n", infElapsed.count());
+        // std::cout<<"Inf time: "<<infElapsed.count()<<"s\n\n";
     }
+    dpStrRefs.clear();
+    dpStrRefs.shrink_to_fit();
+    dpStrRefPos=0;
+    dpDevRefPos=0;
+    oDP.dpDB.dpStrings.shrink_to_fit();
+    oDP.dpDB.dpDevices.shrink_to_fit();
+    oDP.dpDB.dpDrivers.shrink_to_fit();
+    saveDB(oDP.dpDB);
+    oDP.vInfs.clear();
+    oDP.vInfs.shrink_to_fit();
+    dbEnd=std::chrono::high_resolution_clock::now();
+    dbElapsed=dbEnd-dbStart;
+    std::wprintf(L"DB time: %0.4fs\r\n\r\n",dbElapsed.count());
+    return true;
 }
 #pragma endregion dpmGenerateDPDB
 #pragma region dpmLoadDPDB

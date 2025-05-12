@@ -353,3 +353,11 @@ MigrationBackup/
 .ionide/
 
 # End of https://mrkandreev.name/snippets/gitignore-generator/#vs
+
+CPP/7zip/UI/Client7z_dpm/DriverPacks/
+
+CPP/7zip/UI/Client7z_dpm/7z.dll
+
+CPP/7zip/UI/Client7z_dpm/Client7z.exe
+
+CPP/7zip/UI/Client7z_dpm/Client7z.vcxproj.txt
